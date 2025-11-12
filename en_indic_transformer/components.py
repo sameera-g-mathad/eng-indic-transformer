@@ -237,7 +237,7 @@ class DecoderLayer(nn.Module):
         return x
 
 
-class Decoder:
+class Decoder(nn.Module):
     """
     Decoder is supposed to process both the output
     of the final layer of encoder and the target vectors
@@ -264,7 +264,7 @@ class Decoder:
         self.pos_embeddings = nn.Embedding(context_length, emb_dim)
         self.decoder_layers = nn.ModuleList(
             [
-                EncoderLayer(
+                DecoderLayer(
                     context_length=context_length,
                     emb_dim=emb_dim,
                     num_heads=num_heads,
@@ -406,7 +406,7 @@ class Transformer(nn.Module):
             bias=bias,
         )
         # Create a decoder.
-        self.decoder = Encoder(
+        self.decoder = Decoder(
             vocab_size=vocab_size,
             context_length=context_length,
             emb_dim=emb_dim,
