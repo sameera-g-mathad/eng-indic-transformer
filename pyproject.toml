@@ -3,18 +3,18 @@ requires=["setuptools"]
 build-backend="setuptools.build_meta"
 
 [project]
-name = "EN-Indic-Trnasformer"
+name = "EN-Indic-Transformer"
 version = "0.0.1"
 authors = [{"name"="Sameer Gururaj Mathad", email="sameeragmathad@gmail.com"}]
 description = "This is a project to build a machine translation transformer from scratch in pytorch. The aim of this project is to learn how to build transformer and also learn other techniques such as Cross-Attention,Key-Value cahcing,Quantization and other techniques along the way."
 keywords = ['Transformer', 'Machine Translation', 'Encoder', 'Decoder', 'Pytorch', 'Self-Attention']
 requires-python = ">=3.9"
 readme = "README.md"
-license.file='LICENSE'
+license-files=['LICENSE']
 dynamic = ['dependencies', 'optional-dependencies']
 
 [tool.setuptools]
-package=['en-indic-transformer']
+packages=['en_indic_transformer']
 
 [tool.setuptools.dynamic]
 dependencies = {file=["requirements/requirements.txt"]}
