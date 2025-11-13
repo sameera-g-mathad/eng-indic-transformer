@@ -421,15 +421,15 @@ class Transformer(nn.Module):
 
         self.inference = False
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def forward(self, src: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
         Experimental
         """
         # pass the input into encoder.
-        y = self.encoder(y)
+        y = self.encoder(src)
 
         # pass the targets into decoder
-        x = self.decoder(x, y)
+        x = self.decoder(target, y)
 
         # pass the targets into final layer
         # to transform the dimension to vocab
