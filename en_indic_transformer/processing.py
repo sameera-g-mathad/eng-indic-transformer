@@ -46,6 +46,7 @@ class TranslationDataset(Dataset):
 
         target_str = self.target[index]
         # ex: <|english|> ....target...
+        # target_in = self.target_prepend + target_str
         target_in = self.target_prepend + target_str
 
         # ex: ....target...<|endoftext|>
