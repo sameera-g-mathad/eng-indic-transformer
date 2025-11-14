@@ -1,6 +1,5 @@
 from typing import Optional, Literal
 import torch
-import tiktoken
 from torch import nn, optim
 
 
@@ -10,8 +9,9 @@ class Trainer:
     """
 
     _instance: Optional["Trainer"] = None
+    _initialized: bool = False
 
-    def __new__(cls):
+    def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(Trainer, cls).__new__(cls)
         return cls._instance
@@ -21,12 +21,13 @@ class Trainer:
         model: nn.Module,
         loss_fn: nn.Module,
         optimizer: optim.Optimizer,
-        tokenizer: tiktoken.core.Encoding,
     ):
+        if self._initialized:
+            return
         self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer
-        self.tokenizer = tokenizer
+        self._initialized = True
 
     def train(
         self,
@@ -46,14 +47,18 @@ class Trainer:
 
             train_loss = 0
             test_loss = 0
-            for idx, (x, y) in enumerate(train_dataloader):
+            for idx, (x, y_in, y_out) in enumerate(train_dataloader):
                 x = x.to(device)
-                y = y.to(device)
+                y_in = y_in.to(device)
 
-                y_logits = self.model(x, y)
-                y_pred = torch.argmax(torch.softmax(y_logits, dim=-1), dim=-1)
+                y_logits = self.model(x, y_in)
 
-                loss = self.loss_fn(y, y_pred)
+                # print(y_logits.shape, y_logits.dtype, y_out.shape, y_out.dtype)
+
+                # print(y_out, y_logits)
+
+                loss = self.loss_fn(y_logits.flatten(0, 1), y_out.view(-1))
+
                 train_loss += loss.item()
 
                 self.optimizer.zero_grad()
@@ -83,14 +88,15 @@ class Trainer:
         self.model.eval()
         test_loss = 0
         with torch.inference_mode():
-            for x, y in test_dataloader:
+            for x, y_in, y_out in test_dataloader:
                 x = x.to(device)
-                y = y.to(device)
+                y_in = y_in.to(device)
 
-                y_logits = self.model(x, y)
-                y_pred = torch.softmax(y_logits, dim=-1).argmax(dim=-1)
+                y_logits = self.model(x, y_in)
 
-                test_loss += self.loss_fn(y_pred, y).item()
+                # print(y_logits.shape, y_logits.dtype, y_out.shape, y_out.dtype)
+
+                test_loss += self.loss_fn(y_logits.flatten(0, 1), y_out.view(-1)).item()
 
         return test_loss / len(test_dataloader)
 
