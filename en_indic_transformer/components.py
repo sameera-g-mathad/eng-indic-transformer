@@ -17,15 +17,29 @@ class LayerNorm(nn.Module):
 
     def __init__(self, in_dim):
         super().__init__()
+        # a small epsilon value to prevent divide by zero error
         self.eps = 1e-5
+        # two parameters that the model will learn to scale
+        # the inputs
         self.scale = nn.Parameter(torch.ones(in_dim))
         self.shift = nn.Parameter(torch.zeros(in_dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Experimental"""
+        """
+        Normalize each channel/emb_dim of the inputs
+        to have zero mean and a unit standard deviation.
+        Finally scale and shift the inputs by learable parameters.
+        """
+        # find mean for the each token's emb_dim.
         mean = torch.mean(x, dim=-1, keepdim=True)
+
+        # find std for the each token's emb_dim.
         std = torch.std(x, dim=-1, keepdim=True, unbiased=False)
-        x = (x - mean) / std
+
+        # Normalize each token's embeddings.
+        x = (x - mean) / (std + self.eps)  # add eps to prevent errors.
+
+        # return the scaled result.
         return self.scale * x + self.shift
 
 
@@ -42,7 +56,9 @@ class MLP(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Experimental"""
+        """
+        Return the result of the feedforward network.
+        """
         return self.mlp(x)
 
 
@@ -87,18 +103,32 @@ class MultiHeadAttention(nn.Module):
         dropout: float = 0.0,
         bias: bool = False,
         attn_type: Literal["self-attention", "cross-attention"] = "self-attention",
+        layer_type: Literal["decoder", "encoder"] = "decoder",
     ):
         super().__init__()
+        # the out_dim.
         self.out_dim = out_dim
+
+        # number of heads that user define.
         self.num_heads = num_heads
         assert out_dim % num_heads == 0, "out_dim must be divisible by num_heads"
+
+        # the head_dim after multi-head projection.
         self.head_dim = out_dim // num_heads
+
+        # attentin type, either encoder/decoder.
         self.attn_type = attn_type
 
+        # model type, either encoder/decoder.
+        self.layer_type = layer_type
+
+        # learnable weights for query, key, value, output projection.
         self.wq = nn.Linear(in_dim, out_dim, bias=bias)
         self.wk = nn.Linear(in_dim, out_dim, bias=bias)
         self.wv = nn.Linear(in_dim, out_dim, bias=bias)
         self.proj = nn.Linear(out_dim, out_dim, bias=bias)
+
+        # dropout.
         self.dropout = nn.Dropout(dropout)
 
         # this moves the tensor between devices automatically. Usage: self.mask
@@ -112,78 +142,156 @@ class MultiHeadAttention(nn.Module):
             ),
         )
 
-        # Experimental - can be used later for key-value caching
-        self.inference = False
+        # caches for key-value caching.
+        self.register_buffer("cache_key", None)
+        self.register_buffer("cache_val", None)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, y: torch.Tensor, inference: bool = False
+    ) -> torch.Tensor:
         """Forward method"""
-        if not self.inference:
-            return self.train_attn(x)
-        # If not training, then check attention type whether to use
-        # cross-attention or self-attention for inference.
-        elif self.attn_type == "cross-attn":
-            return self.cross_attn(x, y)
-        return self.inference_attn(x)  # Self-attention by default
+        if inference:
+            return self.inference_attn(x, y)
 
-    def cross_attn(
-        self, query: torch.Tensor, kv: torch.Tensor | None = None
+        return self.train_attn(x, y)
+
+    def calc_attn_scores(
+        self, queries: torch.Tensor, keys: torch.Tensor
     ) -> torch.Tensor:
-        """Need to implement"""
-        return query
-
-    def inference_attn(self, query: torch.Tensor) -> torch.Tensor:
-        """Need to implement"""
-        return query
-
-    def train_attn(
-        self, x: torch.Tensor, y: torch.Tensor | None = None
-    ) -> torch.Tensor:
-        """Experimental"""
-        b, context, _emb_dim = x.shape  # (b, context, in_dim)
-
-        queries = self.wq(x)  # (b, context, out_dim)
-
-        if y is not None:
-            keys = self.wk(y)  # (b, context, out_dim)
-            values = self.wv(y)  # (b, context, out_dim)
-
-        else:
-            keys = self.wk(x)  # (b, context, out_dim)
-            values = self.wv(x)  # (b, context, out_dim)
-
-        # Reshape queries, keys, values for multi-head attention.
-        # (b, context, out_dim) -> (b, num_heads, context, head_dim)
-        queries = queries.view(b, self.num_heads, context, self.head_dim)
-        keys = keys.view(b, self.num_heads, context, self.head_dim)
-        values = values.view(b, self.num_heads, context, self.head_dim)
-
+        """
+        Method to calculate attn_scores. Takes both queries and keys.
+        Formula: (QK_T) / (√out_dim)
+        """
         # (b, num_heads, context, head_dim) @ (b, num_heads, head_dim, context)
         # => (b, num_heads, context, context)
         attn_scores = (queries @ keys.transpose(-2, -1)) / (self.head_dim**0.5)
+        return attn_scores
 
-        # causal attention. Fill all the upper traingle matrix with torch.inf,
-        # so that softmax can output 0.
-        if self.attn_type == "self-attention":
-            # self.mask[:context, :context] -> Get the values/ sub-matrix
-            #  till the current context.
-            attn_scores = attn_scores.masked_fill(
-                getattr(self, "mask")[:context, :context], -torch.inf
-            )
+    def calc_context_vec(
+        self, attn_scores: torch.Tensor, values: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Method to calculate attention weights and finally context vector.
+        Takes the pre-calculated attention scores and values and
+        returns the context vector.
+        """
 
         attn_weights = torch.softmax(attn_scores, dim=-1)
-
         attn_weights = self.dropout(attn_weights)
+        b, _, attn_context, _ = (
+            attn_weights.shape
+        )  # b, heads, query_context, keys_context
 
         # (b, num_heads, context, context) @ (b, num_heads, context, head_dim)
         # => (b, num_heads, context, head_dim)
         context_vec = attn_weights @ values
 
-        # (b, num_heads, context, head_dim) => (b, context, out_dim)
-        context_vec = context_vec.view(b, context, self.num_heads * self.head_dim)
+        # (b, num_heads, attn_context, head_dim) => (b, attn_context, out_dim)
+        context_vec = context_vec.view(b, attn_context, self.num_heads * self.head_dim)
 
         context_vec = self.proj(context_vec)
 
         return context_vec
+
+    def inference_attn(self, query: torch.Tensor, kv: torch.Tensor) -> torch.Tensor:
+        """
+        Method used during inference to use key value caching. Used only
+        by decoder.
+        Receives new query everytime for processing. Apart from the initial
+        query that is set to keys and values, subsequent queries are projected for
+        key_new and val_new and concatenated with respective caches to prevent
+        recomputation. The concatenation happens only for self attention and is skipped
+        for cross attention.
+        Note: Masking is skipped for self attention as well. This is because the attention
+        score generated will be for the latest query which represent the last element of the
+        attention score.
+        ex: attn_score_dim = 1 x 1 x 5 => b x query_context x key_context.
+        """
+
+        b, context_q, _ = query.shape
+
+        # project query.
+        query = self.wq(query)
+
+        # if cache is empty, fill them
+        if getattr(self, "cache_key") is None or getattr(self, "cache_val") is None:
+            self.cache_key = self.wk(kv)
+            self.cache_val = self.wv(kv)
+
+        # calculate key_new and val_new and concatenate
+        # with key and value caches along context dim.
+        elif self.attn_type == "self_attn":
+            key_new = self.wk(query)
+            val_new = self.wv(query)
+            self.cache_key = torch.cat([self.cache_key, key_new], dim=-2)
+            self.cache_val = torch.cat([self.cache_val, val_new], dim=-2)
+
+        # take a reference.
+        keys = self.cache_key
+        values = self.cache_val
+
+        # take the length of key's context.
+        # this is because encoder context may or
+        # may not equal decoder context.
+        context_kv = keys.shape[-2]
+
+        # project q,k,v to multiple heads
+        queries = query.view(b, self.num_heads, context_q, self.head_dim)
+        keys = keys.view(b, self.num_heads, context_kv, self.head_dim)
+        values = values.view(b, self.num_heads, context_kv, self.head_dim)
+
+        # calculate attention_scores.
+        # (b, num_heads, context, head_dim) @ (b, num_heads, head_dim, context)
+        # => (b, num_heads, context, context)
+        attn_scores = self.calc_attn_scores(queries=queries, keys=keys)
+
+        # return context vector
+        return self.calc_context_vec(attn_scores=attn_scores, values=values)
+
+    def train_attn(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Multi Masked/Cross Attention used to compute the context vectors
+        of the inputs. This method is used by both encoder and decoder.
+        Receives the entire query(x) and kv(y) during training and also
+        during inference by encoder. Masking is applied only for decoder
+        self-attention as decoder should attend to previous tokens.
+        Takes two inputs x and y, because decoder takes both input from
+        encoder and decoder.
+        For encoder pass the same input twice.
+        """
+        b, context, _emb_dim = x.shape  # (b, context, in_dim)
+
+        queries = self.wq(x)  # (b, context, out_dim)
+
+        keys = self.wk(y)  # (b, context, out_dim)
+        values = self.wv(y)  # (b, context, out_dim)
+        context_kv = y.shape[1]  # get the context of encoder kv
+
+        # else:
+        #     keys = self.wk(x)  # (b, context, out_dim)
+        #     values = self.wv(x)  # (b, context, out_dim)
+        # context_kv = context
+
+        # Reshape queries, keys, values for multi-head attention.
+        # (b, context, out_dim) -> (b, num_heads, context, head_dim)
+        queries = queries.view(b, self.num_heads, context, self.head_dim)
+        keys = keys.view(b, self.num_heads, context_kv, self.head_dim)
+        values = values.view(b, self.num_heads, context_kv, self.head_dim)
+
+        # (b, num_heads, context, head_dim) @ (b, num_heads, head_dim, context)
+        # => (b, num_heads, context, context)
+        attn_scores = self.calc_attn_scores(queries=queries, keys=keys)
+
+        # causal attention. Fill all the upper traingle matrix with torch.inf,
+        # so that softmax can output 0.
+        if self.attn_type == "self-attention" and self.layer_type == "decoder":
+            # self.mask[:context, :context] -> Get the values/ sub-matrix
+            #  till the current context.
+            attn_scores = attn_scores.masked_fill(
+                getattr(self, "mask")[:context, :context_kv], -torch.inf
+            )
+
+        return self.calc_context_vec(attn_scores=attn_scores, values=values)
 
 
 class DecoderLayer(nn.Module):
@@ -211,6 +319,7 @@ class DecoderLayer(nn.Module):
             dropout=dropout,
             bias=bias,
             attn_type="self-attention",
+            layer_type="decoder",
         )
         self.c_attn = MultiHeadAttention(
             in_dim=emb_dim,
@@ -220,18 +329,24 @@ class DecoderLayer(nn.Module):
             dropout=dropout,
             bias=bias,
             attn_type="cross-attention",
+            layer_type="decoder",
         )
         self.norm1 = LayerNorm(in_dim=emb_dim)
         self.norm2 = LayerNorm(in_dim=emb_dim)
         self.norm3 = LayerNorm(in_dim=emb_dim)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Experimental"""
-        x = self.attn(x) + x
+    def forward(
+        self, x: torch.Tensor, y: torch.Tensor, inference: bool
+    ) -> torch.Tensor:
+        """
+        Computes masked-multi attention + cross-attention + feed-forward.
+        Normalization is applied after each operation.
+        """
+        x = self.attn(x, x, inference) + x
         x = self.norm1(x)
-        x = self.c_attn(x, y) + x
+        x = self.c_attn(x, y, inference) + x
         x = self.norm2(x)
-        x = self.mlp(x)
+        x = self.mlp(x) + x
         x = self.norm3(x)
 
         return x
@@ -274,13 +389,28 @@ class Decoder(nn.Module):
                 for _ in range(num_layers)
             ]
         )
+        # Final layer to project each embedding into vocab size
+        self.final_layer = nn.Linear(emb_dim, vocab_size, bias=bias)
 
-    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Experimental"""
+    def forward(
+        self, x: torch.Tensor, y: torch.Tensor, inference: bool = False
+    ) -> torch.Tensor:
+        """
+        Computes token_embeddings, positional_embeddings, and transformer(decoder layer)
+        for each layer in decoder.
+        """
         _, context = x.shape
-        x = self.token_embeddings(x) + self.pos_embeddings(torch.arange(context))
+        x = self.token_embeddings(x) + self.pos_embeddings(
+            torch.arange(0, context, device=x.device)
+        )
         for dec_layer in self.decoder_layers:
-            x = dec_layer(x, y)
+            x = dec_layer(x, y, inference)
+
+        # pass the targets into final layer
+        # to transform the dimension to vocab
+        # size
+        x = self.final_layer(x)
+
         return x
 
 
@@ -309,13 +439,17 @@ class EncoderLayer(nn.Module):
             dropout=dropout,
             bias=bias,
             attn_type="self-attention",
+            layer_type="encoder",
         )
         self.norm1 = LayerNorm(in_dim=emb_dim)
         self.norm2 = LayerNorm(in_dim=emb_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Experimental"""
-        x = self.attn(x) + x
+        """
+        Computes masked-multi attention + feed-forward.
+        Normalization is applied after each operation.
+        """
+        x = self.attn(x, x) + x
         x = self.norm1(x)
         x = self.mlp(x) + x
         x = self.norm2(x)
@@ -362,9 +496,14 @@ class Encoder(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Experimental"""
+        """
+        Computes token_embeddings, positional_embeddings, and transformer(decoder layer)
+        for each layer in decoder.
+        """
         _, context = x.shape
-        x = self.token_embeddings(x) + self.pos_embeddings(torch.arange(0, context))
+        x = self.token_embeddings(x) + self.pos_embeddings(
+            torch.arange(0, context, device=x.device)
+        )
         for enc_layer in self.encoder_layers:
             x = enc_layer(x)
         return x
@@ -416,25 +555,29 @@ class Transformer(nn.Module):
             bias=bias,
         )
 
-        # Final layer to project each embedding into vocab size
-        self.final_layer = nn.Linear(emb_dim, vocab_size, bias=bias)
+    def encode(self, src: torch.Tensor) -> torch.Tensor:
+        """
+        Method to only encode the src vector druing inference.
+        """
+        return self.encoder(src)
 
-        self.inference = False
+    def decode(
+        self, target: torch.Tensor, memory: torch.Tensor, inference: bool
+    ) -> torch.Tensor:
+        """
+        Method to only decode the target vector during inference.
+        """
+        return self.decoder(target, memory, inference=inference)
 
     def forward(self, src: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
-        Experimental
+        Apply encoder and decoder during training.
         """
         # pass the input into encoder.
         y = self.encoder(src)
 
         # pass the targets into decoder
         x = self.decoder(target, y)
-
-        # pass the targets into final layer
-        # to transform the dimension to vocab
-        # size
-        x = self.final_layer(x)
 
         # return raw logits.
         return x

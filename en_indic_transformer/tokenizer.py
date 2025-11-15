@@ -47,13 +47,14 @@ class Tokenizer:
                 mergeable_ranks=base_encoder._mergeable_ranks,
                 special_tokens=extend_token_set,
             )
+            self.allowed_special = set(extend_token_set.keys())
 
     @property
     def n_vocab(self):
         """Return the length of the tokenizer"""
         return self._tokenizer.n_vocab
 
-    def encode(self, text: str, allowed_special: Optional[set] = None) -> torch.Tensor:
+    def encode(self, text: str) -> torch.Tensor:
         """
         Uses `tiktoken.encode()` method under the hood.
         Returns a tensor of token ids.
@@ -61,9 +62,7 @@ class Tokenizer:
         return torch.tensor(
             self._tokenizer.encode(
                 text,
-                allowed_special=(
-                    allowed_special if allowed_special is not None else {"all"}
-                ),
+                allowed_special=self.allowed_special,
             )
         )
 

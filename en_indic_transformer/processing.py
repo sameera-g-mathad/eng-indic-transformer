@@ -33,9 +33,6 @@ class TranslationDataset(Dataset):
         self.src_prepend = src_prepend_value
         self.target_prepend = target_prepend_value
         self.endoftext = endoftext
-        self.allowed_special: set = set(
-            [src_prepend_value, target_prepend_value, endoftext]
-        )
 
     def __len__(self):
         return len(self.target)
@@ -54,9 +51,9 @@ class TranslationDataset(Dataset):
 
         # return a tuple back of encoded ids back.
         return (
-            self.tokenizer.encode(source, allowed_special=self.allowed_special),
-            self.tokenizer.encode(target_in, allowed_special=self.allowed_special),
-            self.tokenizer.encode(target_out, allowed_special=self.allowed_special),
+            self.tokenizer.encode(source),
+            self.tokenizer.encode(target_in),
+            self.tokenizer.encode(target_out),
         )
 
 

@@ -8,7 +8,7 @@ __all__ = [
     "Trainer",
 ]
 
+from .tokenizer import Tokenizer
 from .components import Transformer
 from .model import Trainer
-from .tokenizer import Tokenizer
 from .processing import TranslationDataset, TranslationDataLoader
