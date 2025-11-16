@@ -143,8 +143,17 @@ class MultiHeadAttention(nn.Module):
         )
 
         # caches for key-value caching.
-        self.register_buffer("cache_key", None)
-        self.register_buffer("cache_val", None)
+        # persistent prevents from saving into state_dict
+        self.register_buffer("cache_key", None, persistent=False)
+        self.register_buffer("cache_val", None, persistent=False)
+
+    def reset_cache(self):
+        """
+        To reset the caches before every inference
+        run
+        """
+        setattr(self, "cache_key", None)
+        setattr(self, "cache_val", None)
 
     def forward(
         self, x: torch.Tensor, y: torch.Tensor, inference: bool = False
@@ -220,7 +229,7 @@ class MultiHeadAttention(nn.Module):
 
         # calculate key_new and val_new and concatenate
         # with key and value caches along context dim.
-        elif self.attn_type == "self_attn":
+        elif self.attn_type == "self-attention":
             key_new = self.wk(query)
             val_new = self.wv(query)
             self.cache_key = torch.cat([self.cache_key, key_new], dim=-2)
@@ -351,6 +360,14 @@ class DecoderLayer(nn.Module):
 
         return x
 
+    def reset_cache(self):
+        """
+        Reset the caches of attention and
+        cross-attention blocks.
+        """
+        self.attn.reset_cache()
+        self.c_attn.reset_cache()
+
 
 class Decoder(nn.Module):
     """
@@ -412,6 +429,14 @@ class Decoder(nn.Module):
         x = self.final_layer(x)
 
         return x
+
+    def reset_cache(self):
+        """
+        Reset caches for every decoder layer.
+        """
+        for dec_layer in self.decoder_layers:
+            # to avoid pylance warning.
+            dec_layer.reset_cache()  # type: ignore
 
 
 class EncoderLayer(nn.Module):
@@ -568,6 +593,12 @@ class Transformer(nn.Module):
         Method to only decode the target vector during inference.
         """
         return self.decoder(target, memory, inference=inference)
+
+    def reset_cache(self):
+        """
+        Reset the available caches.
+        """
+        self.decoder.reset_cache()
 
     def forward(self, src: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
