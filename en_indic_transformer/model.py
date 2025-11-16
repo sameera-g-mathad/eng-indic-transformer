@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Generator, Literal, Optional
 import torch
 from torch import nn, optim
@@ -25,6 +26,7 @@ class Trainer:
         loss_fn: nn.Module,
         optimizer: optim.Optimizer,
         tokenizer: Tokenizer,
+        save_path: Path,
     ):
         # checks if there is an instance
         # already.
@@ -35,6 +37,8 @@ class Trainer:
         self.optimizer = optimizer
         self.tokenizer = tokenizer
         self._initialized = True
+        self.path = save_path
+        self.load_checkpoint()
 
     def move(
         self,
@@ -105,6 +109,10 @@ class Trainer:
                 # update weights
                 self.optimizer.step()
 
+                if (idx + 1) % 20 == 0:
+                    self.save_checkpoint()
+                    print("Model checkpoint saved.")
+
                 print(f"Batch {idx} complete")
 
             # calculate average training loss.
@@ -133,6 +141,9 @@ class Trainer:
 
                 # print the resultant prediction.
                 print(f"Predicted target: {result}")
+
+            print(f"Saving checkpoint for epoch: {epoch}")
+            self.save_checkpoint()
             print("-----x-----")
 
         # return the result back.
@@ -168,6 +179,30 @@ class Trainer:
         # return the average test loss
         return test_loss / len(test_dataloader)
 
+    def save_checkpoint(self):
+        """
+        To save the model to store the model state.
+        """
+        torch.save(
+            {
+                "model": self.model.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+            },
+            self.path,
+        )
+
+    def load_checkpoint(self):
+        """
+        To load the state back into model.
+        """
+        if not self.path.exists():
+            print("Warning: The path do not exist yet.")
+            return
+        print("Loading chekpoint.")
+        checkpoint = torch.load(self.path)
+        self.model.load_state_dict(checkpoint["model"])
+        self.optimizer.load_state_dict(checkpoint["optimizer"])
+
     def predict(
         self,
         inputs: str,
@@ -189,6 +224,9 @@ class Trainer:
 
             # caculate the encoder state once for inference.
             memory = self.model.encode(x)
+
+            # rest the caches
+            self.model.reset_cache()
 
             # Repeat for max_token times
             for _ in range(max_tokens):
