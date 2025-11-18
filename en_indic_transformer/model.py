@@ -46,7 +46,7 @@ class Trainer:
         y_in: torch.Tensor,
         y_out: torch.Tensor | None = None,
         device: DeviceType = "cpu",
-    ) -> None:
+    ) -> tuple:
         """
         Moves the passed tensors into their respective device
         """
@@ -54,6 +54,9 @@ class Trainer:
         y_in = y_in.to(device)
         if y_out is not None:
             y_out = y_out.to(device)
+
+        # return the newly moved input/outputs
+        return x, y_in, y_out
 
     def train(
         self,
@@ -89,7 +92,7 @@ class Trainer:
             # loop over the dataloader
             for idx, (x, y_in, y_out) in enumerate(train_dataloader):
                 # move the input to respective device
-                self.move(x, y_in, y_out, device=device)
+                x, y_in, y_out = self.move(x, y_in, y_out, device=device)
 
                 # calculate y_logits by performing feed-forward.
                 y_logits = self.model(x, y_in)
@@ -168,7 +171,7 @@ class Trainer:
             for x, y_in, y_out in test_dataloader:
 
                 # move inputs to respective devices.
-                self.move(x, y_in, y_out, device=device)
+                x, y_in, y_out = self.move(x, y_in, y_out, device=device)
 
                 # calculate the raw logits
                 y_logits = self.model(x, y_in)
@@ -221,6 +224,8 @@ class Trainer:
             # encode both the input and target
             x = self.tokenizer.encode(inputs).unsqueeze(dim=0)  # to make [b, x]
             y = self.tokenizer.encode(target).unsqueeze(dim=0)  # to make [b, y]
+            # move the inputs to respective devices.
+            x, y, _ = self.move(x, y, device=device)
 
             # caculate the encoder state once for inference.
             memory = self.model.encode(x)
@@ -230,8 +235,6 @@ class Trainer:
 
             # Repeat for max_token times
             for _ in range(max_tokens):
-                # move the inputs to respective devices.
-                self.move(x, y, device=device)
 
                 # predict the next tokens.
                 y_logits = self.model.decode(y, memory, inference=True)

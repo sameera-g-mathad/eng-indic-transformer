@@ -68,7 +68,7 @@ class MultiHeadAttention(nn.Module):
 
     Self-attention: The purpose of self-attention is to create
     a context vector for each input vector, where context vector
-    can be thouhgt of as an enriched vector that contains information
+    can be thought of as an enriched vector that contains information
     about its corresponding input vector and all other tokens in
     the sequence. This is done in three steps.
     1. Attention scores: Calculate the dot product between input vector
