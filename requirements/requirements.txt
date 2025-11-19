@@ -1,8 +1,9 @@
-pandas==2.3.3
-torch==2.7.0
-tiktoken
+pandas
+torch
+# tiktoken
 numpy
 matplotlib
 pyarrow
 fastparquet
 huggingface_hub
+sentencepiece
