@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Generator, Literal, Optional
+from tqdm.auto import tqdm
 import torch
 from torch import nn, optim
 from en_indic_transformer import Transformer, Tokenizer
@@ -80,7 +81,7 @@ class Trainer:
         train_loss_list = []
         test_loss_list = []
 
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs)):
             print(f"----- Epoch {epoch} -----")
 
             # put the model to train mode.
@@ -90,7 +91,7 @@ class Trainer:
             test_loss = 0
 
             # loop over the dataloader
-            for idx, (x, y_in, y_out) in enumerate(train_dataloader):
+            for idx, (x, y_in, y_out) in enumerate(tqdm(train_dataloader, leave=True, ncols=100)):
                 # move the input to respective device
                 x, y_in, y_out = self.move(x, y_in, y_out, device=device)
 
@@ -112,11 +113,11 @@ class Trainer:
                 # update weights
                 self.optimizer.step()
 
-                if (idx + 1) % 20 == 0:
-                    self.save_checkpoint()
-                    print("Model checkpoint saved.")
+                # if (idx + 1) % 100 == 0: # changed to 100 from 20
+                #     self.save_checkpoint()
+                #     print(f"{epoch} Epoch: Model checkpoint saved after {idx + 1} batch.")
 
-                print(f"Batch {idx} complete")
+                # print(f"Batch {idx} complete")
 
             # calculate average training loss.
             avg_train_loss = train_loss / len(train_dataloader)
@@ -168,7 +169,7 @@ class Trainer:
 
         with torch.inference_mode():
             # for src, target_in, target_out in test_dataloader.
-            for x, y_in, y_out in test_dataloader:
+            for x, y_in, y_out in tqdm(test_dataloader, leave=False, ncols=100):
 
                 # move inputs to respective devices.
                 x, y_in, y_out = self.move(x, y_in, y_out, device=device)
@@ -230,8 +231,10 @@ class Trainer:
             # caculate the encoder state once for inference.
             memory = self.model.encode(x)
 
+            print(memory.shape)
+
             # rest the caches
-            self.model.reset_cache()
+            # self.model.reset_cache()
 
             # Repeat for max_token times
             for _ in range(max_tokens):
@@ -246,12 +249,12 @@ class Trainer:
                 prediction = torch.argmax(last_token, dim=-1)
 
                 # if the prediction is <|endoftext|>, stop yielding.
-                if prediction == 50256:
+                if prediction.item() == 50256:
                     break
 
                 # update y to prediction as the next query and
                 # match the dimension.
-                y = torch.unsqueeze(prediction, dim=0)  # [b, prediction]
-
+                # y = torch.unsqueeze(prediction, dim=0)  # [b, prediction]
+                y = torch.cat([y, prediction.unsqueeze(0)], dim=1)
                 # yield the prediction back.
                 yield prediction

@@ -159,8 +159,8 @@ class MultiHeadAttention(nn.Module):
         self, x: torch.Tensor, y: torch.Tensor, inference: bool = False
     ) -> torch.Tensor:
         """Forward method"""
-        if inference:
-            return self.inference_attn(x, y)
+        # if inference:
+        #     return self.inference_attn(x, y)
 
         return self.train_attn(x, y)
 
