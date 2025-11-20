@@ -1,3 +1,4 @@
+from functools import partial
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
@@ -38,23 +39,22 @@ class TranslationDataset(Dataset):
         return len(self.target)
 
     def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # ex: <|english|> ....src...<|endoftext|>
-        source = self.src_prepend + self.src[index] + self.endoftext
-
+        source = self.src[index]
         target_str = self.target[index]
+
+        # ex: <|english|> ....src...<|endoftext|>
+        inputs = self.tokenizer.encode(
+            source, prefix_str=self.src_prepend, suffix_str=self.endoftext
+        )
+
         # ex: <|english|> ....target...
-        # target_in = self.target_prepend + target_str
-        target_in = self.target_prepend + target_str
+        targets_in = self.tokenizer.encode(target_str, prefix_str=self.target_prepend)
 
         # ex: ....target...<|endoftext|>
-        target_out = target_str + self.endoftext
+        targets_out = self.tokenizer.encode(target_str, suffix_str=self.endoftext)
 
         # return a tuple back of encoded ids back.
-        return (
-            self.tokenizer.encode(source),
-            self.tokenizer.encode(target_in),
-            self.tokenizer.encode(target_out),
-        )
+        return (inputs, targets_in, targets_out)
 
 
 class TranslationDataLoader(DataLoader):
@@ -63,36 +63,58 @@ class TranslationDataLoader(DataLoader):
     fills each batch with pad_tokens to make training easier.
     """
 
-    def __init__(self, dataset: Dataset, batch_size: int, shuffle: bool):
+    def __init__(
+        self,
+        dataset: Dataset,
+        batch_size: int,
+        shuffle: bool,
+        pad_val: int,
+        ignore_index: int,
+    ):
+        # prefill the pad_val and ignore_index and create
+        # a pre-defined method signature.
+        collate_fn = partial(
+            self.custom_collate_fn, pad_val=pad_val, ignore_index=ignore_index
+        )
         super().__init__(
             dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
-            collate_fn=self.custom_collate_fn,
+            collate_fn=collate_fn,
         )
 
-    def custom_collate_fn(self, batch):
+    def custom_collate_fn(self, batch, pad_val: int, ignore_index: int):
         """
         Custom collation method, the source, target_in arrays are filled
         with 50256, i.e <|endoftext|> for now. Also the target_out array
         is fill with -100 for the loss function to ignore.
-        soure: the string/ids that is fed to encoder.
+        source: the string/ids that is fed to encoder.
         target_in: the input that enters decoder.
         target_out: the output that is used for loss calculation.
+
+        :param pad_val: Padding value for the sequence to match the longest
+        sequence in the batch.
+        :type pad_val: int
+
+        :param ignore_index: Index value added to make response toknes (target_out)
+        to match the longest in the sequence. But is filled with ignore_index (-100)
+        to avoid loss calculation.
+        :type ignore_index: int
         """
         sources, target_ins, target_outs = [], [], []
 
         for source, target_in, target_out in batch:
-            sources.append(source)
-            target_ins.append(target_in)
-            target_outs.append(target_out)
+            sources.append(source)  # take all the source tokens
+            target_ins.append(target_in)  # take all the target in tokens
+            target_outs.append(target_out)  # take all the target out tokens
 
-        source_padded = pad_sequence(sources, batch_first=True, padding_value=50256)
+        # pad source, target_in, target_out tokens
+        source_padded = pad_sequence(sources, batch_first=True, padding_value=pad_val)
         target_in_padded = pad_sequence(
-            target_ins, batch_first=True, padding_value=50256
+            target_ins, batch_first=True, padding_value=pad_val
         )
         target_out_padded = pad_sequence(
-            target_outs, batch_first=True, padding_value=-100
+            target_outs, batch_first=True, padding_value=ignore_index
         )
 
         return source_padded, target_in_padded, target_out_padded
