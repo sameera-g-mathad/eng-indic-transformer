@@ -798,6 +798,27 @@ class Transformer(nn.Module):
             bias=bias,
         )
 
+    @property
+    def size(self) -> int:
+        """
+        :returns: Returns the total number of parameters
+                in the model that are trainable.
+        :rtype: int.
+        """
+        total_parameters = 0
+
+        # for encoder.
+        for param in self.encoder.parameters():
+            if param.requires_grad:
+                total_parameters += param.numel()
+
+        # for decoder.
+        for param in self.decoder.parameters():
+            if param.requires_grad:
+                total_parameters += param.numel()
+
+        return total_parameters
+
     def encode(self, src: torch.Tensor) -> torch.Tensor:
         """
         Method to only encode the src vector druing inference.
