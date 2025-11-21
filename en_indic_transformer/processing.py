@@ -18,13 +18,31 @@ class TranslationDataset(Dataset):
 
     def __init__(
         self,
-        src: list,
-        target: list,
+        src: list[str],
+        target: list[str],
         tokenizer: Tokenizer,
         src_prepend_value: str,
         target_prepend_value: str,
         endoftext: str = "<|endoftext|>",
     ):
+        """
+        :param src: List of source sequences.
+        :type src: list[str].
+        :param target: List of target sequences.
+        :type src: list[str].
+        :param tokenizer: Tokenzier from `tokenizer.py` for
+        tokenization of inputs.
+        :type tokenizer: Tokenizer.
+        :param src_preprend_value: Prefix string to prepend to
+        input sequences.
+        :type src_preprend_value: str.
+        :param target_preprend_value: Prefix string to prepend to
+        input sequences.
+        :type target_preprend_value: str.
+        :param endoftext: Suffix to append both input and target
+        sequences.
+        :type endoftext: str.
+        """
         assert len(src) == len(
             target
         ), "Length of source and target lists should be equal"
@@ -71,6 +89,23 @@ class TranslationDataLoader(DataLoader):
         pad_val: int,
         ignore_index: int,
     ):
+        """
+        :param dataset: Dataset to makes batches for training.
+        :type dataset: torch.utils.data.Dataset.
+        :param batch_size: Batch size to get the number of instaces.
+        :type batch_size: int.
+        :param shuffle: Boolean varaiable needed to shuffle the data
+        before returning/retrieving.
+        :type shuffle: bool.
+         :param pad_val: Padding value for the sequence to match the longest
+        sequence in the batch.
+        :type pad_val: int.
+
+        :param ignore_index: Index value added to make response toknes (target_out)
+                            to match the longest in the sequence. But is filled with
+                            ignore_index (-100) to avoid loss calculation.
+        :type ignore_index: int.
+        """
         # prefill the pad_val and ignore_index and create
         # a pre-defined method signature.
         collate_fn = partial(
@@ -83,23 +118,27 @@ class TranslationDataLoader(DataLoader):
             collate_fn=collate_fn,
         )
 
-    def custom_collate_fn(self, batch, pad_val: int, ignore_index: int):
+    def custom_collate_fn(self, batch, pad_val: int, ignore_index: int) -> tuple:
         """
         Custom collation method, the source, target_in arrays are filled
         with 50256, i.e <|endoftext|> for now. Also the target_out array
         is fill with -100 for the loss function to ignore.
+
         source: the string/ids that is fed to encoder.
         target_in: the input that enters decoder.
         target_out: the output that is used for loss calculation.
 
         :param pad_val: Padding value for the sequence to match the longest
         sequence in the batch.
-        :type pad_val: int
+        :type pad_val: int.
 
         :param ignore_index: Index value added to make response toknes (target_out)
-        to match the longest in the sequence. But is filled with ignore_index (-100)
-        to avoid loss calculation.
-        :type ignore_index: int
+                            to match the longest in the sequence. But is filled with
+                            ignore_index (-100) to avoid loss calculation.
+        :type ignore_index: int.
+
+        :returns: A tuple of padded input, target_in and target out tokens.
+        :rtype: tuple.
         """
         sources, target_ins, target_outs = [], [], []
 

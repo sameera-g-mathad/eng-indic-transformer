@@ -1,4 +1,7 @@
-"""Experimental"""
+"""
+All the exports from en_indic_transformer
+directory.
+"""
 
 __all__ = [
     "Tokenizer",
