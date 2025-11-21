@@ -16,6 +16,13 @@ class LayerNorm(nn.Module):
     """
 
     def __init__(self, in_dim):
+        """
+        :param in_dim: The dimension to initialize weights
+                       for scaling and shifting the inputs.
+                       Usually same size as the embedding
+                       dimension of input.
+        :type in_dim: int.
+        """
         super().__init__()
         # a small epsilon value to prevent divide by zero error
         self.eps = 1e-5
@@ -29,6 +36,12 @@ class LayerNorm(nn.Module):
         Normalize each channel/emb_dim of the inputs
         to have zero mean and a unit standard deviation.
         Finally scale and shift the inputs by learable parameters.
+
+        :param x: input to LayerNorm
+        :type x: torch.Tensor
+
+        :returns: Returns a layer normalized tensor.
+        :rtype: torch.Tensor.
         """
         # find mean for the each token's emb_dim.
         mean = torch.mean(x, dim=-1, keepdim=True)
@@ -50,6 +63,15 @@ class MLP(nn.Module):
     """
 
     def __init__(self, in_dim, out_dim):
+        """
+        :param in_dim: The in_dim to initialize the linear
+                       weights to match the embedding dimenision.
+        :type in_dim: int.
+        :param out_dim: The out_dim to initialize the linear
+                        weights.
+        :type out_dim: int.
+
+        """
         super().__init__()
         self.mlp = nn.Sequential(
             nn.Linear(in_dim, out_dim), nn.GELU(), nn.Linear(out_dim, in_dim)
@@ -58,6 +80,12 @@ class MLP(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Return the result of the feedforward network.
+
+        :param x: The inputs to the feed-forward module.
+        :type x: torch.Tensor.
+
+        :returns: The output tensors.
+        :rtype: torch.Tensor.
         """
         return self.mlp(x)
 
@@ -105,6 +133,32 @@ class MultiHeadAttention(nn.Module):
         attn_type: Literal["self-attention", "cross-attention"] = "self-attention",
         layer_type: Literal["decoder", "encoder"] = "decoder",
     ):
+        """
+         :param in_dim: The in_dim to initialize the linear
+                       weights of query, key and values to match the
+                       embedding dimenision.
+        :type in_dim: int.
+        :param out_dim: The out_dim to initialize the linear
+                       weights of query, key and values to match the
+                       embedding dimenision.
+        :type out_dim: int.
+        :param context_length: Maximum allowed context length to allow masking.
+                               and used for output projection layer.
+        :type context_length: int.
+        :param num_heads: The number of heads the embedding dimension needs to
+                          be projected. Usually even number and embedding dimension
+                          must be divisible by num_heads.
+        :type num_heads: int.
+        :param dropout: Value used by the dropout layer.
+        :type dropout: float.
+        :param bias: Boolean value whether each weights in the layer needs bias or not.
+        :type bias: bool.
+        :param attn_type: Value to tell the model what kind of layer this is, i.e either
+                          a self-attention or cross attention layer.
+        :type attn_type: Literal["self-attention", "cross-attention"]
+        :param layer_type: Used during inference as encoder doesn't need masking and caching.
+        :type layer_type: Literal["decoder", "encoder"]
+        """
         super().__init__()
         # the out_dim.
         self.out_dim = out_dim
@@ -150,7 +204,7 @@ class MultiHeadAttention(nn.Module):
     def reset_cache(self):
         """
         To reset the caches before every inference
-        run
+        run.
         """
         setattr(self, "cache_key", None)
         setattr(self, "cache_val", None)
@@ -158,7 +212,18 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self, x: torch.Tensor, y: torch.Tensor, inference: bool = False
     ) -> torch.Tensor:
-        """Forward method"""
+        """
+        Forward method of Mutli-head attention layer.
+
+        :param x: Inputs from the decoder or encoder depending on the layer
+                  using it.
+        :type x: torch.Tensor.
+        :param y: Could be the same inputs in case of encoder and self-attention,
+                  but changes for cross attention.
+        :type y: torch.Tensor.
+        :param inference: Boolean value that can be used for caching.
+        :type inference: bool.
+        """
         # if inference:
         #     return self.inference_attn(x, y)
 
@@ -170,6 +235,14 @@ class MultiHeadAttention(nn.Module):
         """
         Method to calculate attn_scores. Takes both queries and keys.
         Formula: (QK_T) / (√out_dim)
+
+        :param queries: Projected queries part of the inputs.
+        :type queries: torch.Tensor.
+        :param keys: Projected keys part of the inputs.
+        :type keys: torch.Tensor.
+
+        :returns: Calculated attention scores.
+        :rtype: torch.Tensor.
         """
         # (b, num_heads, context, head_dim) @ (b, num_heads, head_dim, context)
         # => (b, num_heads, context, context)
@@ -183,6 +256,15 @@ class MultiHeadAttention(nn.Module):
         Method to calculate attention weights and finally context vector.
         Takes the pre-calculated attention scores and values and
         returns the context vector.
+
+        :param attn_scores: Attention scores calculated.
+        :type attn_scores: torch.Tensor.
+
+        :param values: Projected values part of the inputs.
+        :type values: torch.Tensor.
+
+        :returns: Calculated attention weights.
+        :rtype: torch.Tensor.
         """
 
         attn_weights = torch.softmax(attn_scores, dim=-1)
@@ -215,6 +297,14 @@ class MultiHeadAttention(nn.Module):
         score generated will be for the latest query which represent the last element of the
         attention score.
         ex: attn_score_dim = 1 x 1 x 5 => b x query_context x key_context.
+
+        :param query: latest query to be processed by the decoder.
+        :type query: torch.Tensor.
+        :param kv: kv part of the decoder to be projected into keys and values to be cached.
+        :type kv: torch.Tensor.
+
+        :returns: Attention aware input.
+        :rtype: torch.Tensor.
         """
 
         b, context_q, _ = query.shape
@@ -267,6 +357,12 @@ class MultiHeadAttention(nn.Module):
         Takes two inputs x and y, because decoder takes both input from
         encoder and decoder.
         For encoder pass the same input twice.
+
+        :param x: Inputs from decoder or encoder using attention.
+        :type x: torch.Tensor.
+        :param y: Same input as x for encoder and decoder, but differs
+                  for cross-attention.
+        :type y: torch.Tensor.
         """
         b, context, _emb_dim = x.shape  # (b, context, in_dim)
 
@@ -318,6 +414,21 @@ class DecoderLayer(nn.Module):
         dropout: float,
         bias: bool,
     ):
+        """
+        :param context_length: Maximum allowed context length to allow masking.
+                               and used for output projection layer.
+        :type context_length: int.
+        :param emb_dim: Embedding dimension of inputs.
+        :type emb_dim: int.
+        :param num_heads: The number of heads the embedding dimension needs to
+                          be projected. Usually even number and embedding dimension
+                          must be divisible by num_heads.
+        :type num_heads: int.
+        :param dropout: Value used by the dropout layer.
+        :type dropout: float.
+        :param bias: Boolean value whether each weights in the layer needs bias or not.
+        :type bias: bool.
+        """
         super().__init__()
         self.mlp = MLP(emb_dim, emb_dim * 4)
         self.attn = MultiHeadAttention(
@@ -350,6 +461,16 @@ class DecoderLayer(nn.Module):
         """
         Computes masked-multi attention + cross-attention + feed-forward.
         Normalization is applied after each operation.
+
+        :param x: The target sequence to be passed to decoder.
+        :type x: torch.Tensor.
+        :param y: The transformed input sequence for cross-attention.
+        :type y: torch.Tensor.
+        :param inference: Boolean value that can be used for caching.
+        :type inference: bool.
+
+        :returns: The output of the single decoder layer.
+        :rtype: torch.Tensor.
         """
         x = self.attn(x, x, inference) + x
         x = self.norm1(x)
@@ -391,6 +512,26 @@ class Decoder(nn.Module):
         dropout: float,
         bias: bool = False,
     ):
+        """
+        :param vocab_size: To create a embedding layer.
+        :type vocab_size: int
+        :param context_length: Maximum allowed context length to allow masking.
+                               and used for output projection layer. Also, to
+                               create positional embeddings.
+        :type context_length: int.
+        :param emb_dim: Embedding dimension of inputs.
+        :type emb_dim: int.
+        :param num_layers: Number of decoder layers to create.
+        :type num_layers: int.
+        :param num_heads: The number of heads the embedding dimension needs to
+                          be projected. Usually even number and embedding dimension
+                          must be divisible by num_heads.
+        :type num_heads: int.
+        :param dropout: Value used by the dropout layer.
+        :type dropout: float.
+        :param bias: Boolean value whether each weights in the layer needs bias or not.
+        :type bias: bool.
+        """
         super().__init__()
         self.token_embeddings = nn.Embedding(vocab_size, emb_dim)
         self.pos_embeddings = nn.Embedding(context_length, emb_dim)
@@ -415,6 +556,17 @@ class Decoder(nn.Module):
         """
         Computes token_embeddings, positional_embeddings, and transformer(decoder layer)
         for each layer in decoder.
+
+        :param x: The target sequence to be passed to decoder consisting of num_layer
+                  decoder layers.
+        :type x: torch.Tensor.
+        :param y: The transformed input sequence for cross-attention.
+        :type y: torch.Tensor.
+        :param inference: Boolean value that can be used for caching.
+        :type inference: bool.
+
+        :returns: The output of the decoder.
+        :rtype: torch.Tensor.
         """
         _, context = x.shape
         x = self.token_embeddings(x) + self.pos_embeddings(
@@ -454,6 +606,21 @@ class EncoderLayer(nn.Module):
         dropout: float,
         bias: bool,
     ):
+        """
+        :param context_length: To create positional embeddings and pass to
+                               attention layer to make class generic.
+        :type context_length: int.
+        :param emb_dim: Embedding dimension of inputs sequence.
+        :type emb_dim: int.
+        :param num_heads: The number of heads the embedding dimension needs to
+                          be projected. Usually even number and embedding dimension
+                          must be divisible by num_heads.
+        :type num_heads: int.
+        :param dropout: Value used by the dropout layer.
+        :type dropout: float.
+        :param bias: Boolean value whether each weights in the layer needs bias or not.
+        :type bias: bool.
+        """
         super().__init__()
         self.mlp = MLP(emb_dim, emb_dim * 4)
         self.attn = MultiHeadAttention(
@@ -473,6 +640,11 @@ class EncoderLayer(nn.Module):
         """
         Computes masked-multi attention + feed-forward.
         Normalization is applied after each operation.
+
+        :param x: Input to the encoder layer.
+        :type x: torch.Tensor.
+        :returns: The transformed x(inputs) of the single encoder layer.
+        :rypte: torch.Tensor.
         """
         x = self.attn(x, x) + x
         x = self.norm1(x)
@@ -504,6 +676,25 @@ class Encoder(nn.Module):
         dropout: float,
         bias: bool = False,
     ):
+        """
+        :param vocab_size: To create a embedding layer.
+        :type vocab_size: int
+        :param context_length: To create positional embeddings and pass to
+                               attention layer to make class generic.
+        :type context_length: int.
+        :param emb_dim: Embedding dimension of inputs sequence.
+        :type emb_dim: int.
+        :param num_layers: Number of encoder layers to create.
+        :type num_layers: int.
+        :param num_heads: The number of heads the embedding dimension needs to
+                          be projected. Usually even number and embedding dimension
+                          must be divisible by num_heads.
+        :type num_heads: int.
+        :param dropout: Value used by the dropout layer.
+        :type dropout: float.
+        :param bias: Boolean value whether each weights in the layer needs bias or not.
+        :type bias: bool.
+        """
         super().__init__()
         self.token_embeddings = nn.Embedding(vocab_size, emb_dim)
         self.pos_embeddings = nn.Embedding(context_length, emb_dim)
@@ -524,6 +715,11 @@ class Encoder(nn.Module):
         """
         Computes token_embeddings, positional_embeddings, and transformer(decoder layer)
         for each layer in decoder.
+
+        :param x: Input to the encoder consisting of num_layers encoder layers.
+        :type x: torch.Tensor.
+        :returns: The transformed x(inputs) of the single encoder layer.
+        :rypte: torch.Tensor.
         """
         _, context = x.shape
         x = self.token_embeddings(x) + self.pos_embeddings(
@@ -558,6 +754,28 @@ class Transformer(nn.Module):
         dropout: float,
         bias: bool = False,
     ):
+        """
+        :param vocab_size: To create a embedding layer.
+        :type vocab_size: int
+        :param context_length: Maximum allowed context length to allow masking.
+                               and used for output projection layer. Also, to
+                               create positional embeddings.
+        :type context_length: int.
+        :param emb_dim: Embedding dimension of inputs.
+        :type emb_dim: int.
+        :param enc_layer: Number of encoder layers to create.
+        :type enc_layer: int.
+        :param dec_layer: Number of decoder layers to create.
+        :type dec_layer: int.
+        :param num_heads: The number of heads the embedding dimension needs to
+                          be projected. Usually even number and embedding dimension
+                          must be divisible by num_heads.
+        :type num_heads: int.
+        :param dropout: Value used by the dropout layer.
+        :type dropout: float.
+        :param bias: Boolean value whether each weights in the layer needs bias or not.
+        :type bias: bool.
+        """
         super().__init__()
         # Create an Encoder.
         self.encoder = Encoder(
@@ -583,6 +801,11 @@ class Transformer(nn.Module):
     def encode(self, src: torch.Tensor) -> torch.Tensor:
         """
         Method to only encode the src vector druing inference.
+
+        :param src: Source sequence to pass to encoder during inference.
+        :type src: torch.Tensor.
+        :returns: Output of encoder.
+        :rtype: torch.Tensor.
         """
         return self.encoder(src)
 
@@ -591,6 +814,17 @@ class Transformer(nn.Module):
     ) -> torch.Tensor:
         """
         Method to only decode the target vector during inference.
+
+        :param target: Target sequence to pass to decoder during inference.
+        :type target: torch.Tensor.
+        :param memory: The output of encoder to be passed as memory for
+                       cross attention.
+        :type memory: torch.Tensor.
+        :param inference: Boolean value that can be used for caching.
+        :type inference: bool.
+
+        :returns: Output of decoder.
+        :rtype: torch.Tensor.
         """
         return self.decoder(target, memory, inference=inference)
 
@@ -603,6 +837,16 @@ class Transformer(nn.Module):
     def forward(self, src: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         """
         Apply encoder and decoder during training.
+
+        :param src: Source sequence to pass to the encoder.
+        :type src: torch.Tensor.
+
+        :param target: Target sequence to pass to the decoder.
+        :type target: torch.Tensor.
+
+        :returns: The output of final layer after encoding and decoding
+                  of source and target sequences.
+        :rtype: torch.Tensor.
         """
         # pass the input into encoder.
         y = self.encoder(src)

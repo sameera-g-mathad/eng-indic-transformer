@@ -11,6 +11,10 @@ DeviceType = Literal["cpu", "cuda"]  # allowed device values.
 class Trainer:
     """
     A singleton class that is used to train the model.
+    This class is written specifically for transformer class
+    that can be found in `components.py`. The reason is simply
+    because of the existance of encoder. Two inputs are passed
+    instead of single item.
     """
 
     _instance: Optional["Trainer"] = None
@@ -29,6 +33,20 @@ class Trainer:
         tokenizer: Tokenizer,
         save_path: Path,
     ):
+        """
+        :param model: The model to be trained by the trainer.
+        :type model: Transformer.
+        :param loss_fn: The loss entity.
+        :type loss_fn: torch.nn.Module.
+        :param optimizer: Optimizer for training.
+        :type optimizer: torch.optim.Optimizer.
+        :param tokenizer: Tokenzier from `tokenizer.py` for
+        tokenization of inputs.
+        :type tokenizer: Tokenizer.
+        :param save_path: Path to store and load models during
+        training and inference.
+        :type save_path: pathlib.Path.
+        """
         # checks if there is an instance
         # already.
         if self._initialized:
@@ -39,7 +57,9 @@ class Trainer:
         self.tokenizer = tokenizer
         self._initialized = True
         self.path = save_path
-        self.load_checkpoint()
+
+        # load the model if one exists already.
+        self._load_checkpoint()
 
     def move(
         self,
@@ -49,7 +69,18 @@ class Trainer:
         device: DeviceType = "cpu",
     ) -> tuple:
         """
-        Moves the passed tensors into their respective device
+        Moves the passed tensors into their respective device.
+
+        :param x: The input tensor to move to the device.
+        :type x: torch.Tensor.
+        :param y_in: The target_in tensor to move to the device.
+        :type y_in: torch.Tensor.
+        :param y_out: The target_out tensor to move to the device **(optional)**.
+        :type y_out: torch.Tensor | None.
+        :param device: Device to move the tensors to.
+        :type device: 'cpu' | 'cuda'.
+        :returns: Tuple of tensors moved to the specified devices.
+        :rtype: tuple
         """
         x = x.to(device)
         y_in = y_in.to(device)
@@ -67,16 +98,40 @@ class Trainer:
         device: DeviceType,
         predict_input: str | None = None,
         predict_target: str | None = None,
-        max_tokens: int = 100,
+        max_tokens: int | None = 100,
     ) -> dict:
         """
         To Train the model that is clearly of Transformer instance.
-        Should pass both train_dataloader and test_dataloader.
-        Returns a dict of train_loss and test_loss (if provided)
-        over all epochs.
 
-        Pass the predict_input and predict_target to print the prediction
-        after each epoch.
+        If test_dataloader is provided, then `Tokenizer.test()` is called
+        to run the model to evaluate the model on unseen data.
+
+        If predict_input and predict_target is provided, then `Tokenizer.predict()`
+        method is called internally and the result is printed.
+
+        :param train_dataloader: Train dataloader.
+        :type train_dataloader: torch.utils.data.DataLoader.
+        :param test_dataloader: Test dataloader that is optional, if
+                                provided, model will be tested against
+                                test data and loss is returned.
+        :type test_dataloader: torch.utils.data.DataLoader | None.
+        :param epochs: The number of epochs to train the model.
+        :type epochs: int.
+        :param device: Device to move the tensors to.
+        :type device: 'cpu' | 'cuda'.
+        :param predict_input: The input string of the source text to predict the
+        performance of the model after every epoch which is optional.
+        :type predict_input: str | None.
+        :param predict_target: The target prefix to be provided to let the
+        decoder predict next token which is optional.
+        :type predict_target: str | None.
+        :param max_tokens: Max tokens to be predicted if predict_input and predict_target
+        is provided.
+        :type max_tokens: int | None.
+
+        :returns: Returns a dictionary with train loss and test loss if test dataloader
+        is provided.
+        :rtype: dict.
         """
         train_loss_list = []
         test_loss_list = []
@@ -91,7 +146,9 @@ class Trainer:
             test_loss = 0
 
             # loop over the dataloader
-            for idx, (x, y_in, y_out) in enumerate(tqdm(train_dataloader, leave=True, ncols=100)):
+            for _idx, (x, y_in, y_out) in enumerate(
+                tqdm(train_dataloader, leave=True, ncols=100)
+            ):
                 # move the input to respective device
                 x, y_in, y_out = self.move(x, y_in, y_out, device=device)
 
@@ -147,7 +204,7 @@ class Trainer:
                 print(f"Predicted target: {result}")
 
             print(f"Saving checkpoint for epoch: {epoch}")
-            self.save_checkpoint()
+            self._save_checkpoint()
             print("-----x-----")
 
         # return the result back.
@@ -160,6 +217,15 @@ class Trainer:
     ) -> float:
         """
         To test the model against a dedicated test_dataloader.
+
+        :param test_dataloader: Test dataloader to tested against
+                                test data and loss is returned.
+        :type test_dataloader: torch.utils.data.DataLoader.
+        :param device: Device to move the tensors to.
+        :type device: 'cpu' | 'cuda'.
+
+        :returns: Test loss.
+        :rtype: float.
         """
 
         # put the model in eval mode.
@@ -183,7 +249,7 @@ class Trainer:
         # return the average test loss
         return test_loss / len(test_dataloader)
 
-    def save_checkpoint(self):
+    def _save_checkpoint(self):
         """
         To save the model to store the model state.
         """
@@ -195,7 +261,7 @@ class Trainer:
             self.path,
         )
 
-    def load_checkpoint(self):
+    def _load_checkpoint(self):
         """
         To load the state back into model.
         """
@@ -211,12 +277,26 @@ class Trainer:
         self,
         inputs: str,
         target: str,
-        max_tokens: int = 4096,  # context size.
+        max_tokens: int,  # context size.
         device: DeviceType = "cpu",
     ) -> Generator[torch.Tensor, Any, Any]:
         """
         Method to predict tokens for the given input and
         target.
+
+        :param inputs: The source string to be passed to encoder.
+        :type inputs: str.
+        :param target: The target string to be passed to decoder.
+                       Should pass the start token, like <|kannda|
+                       or <|hindi|>
+        :type target: str.
+        :param max_tokens: Maximum tokens allowed for token generation.
+        :type max_tokens: int.
+        :param device: Device to move the tensors to.
+        :type device: 'cpu' | 'cuda'.
+
+        :returns: A generator to yield a torch tensor for every iteration.
+        :rtype: Generator[torch.Tensor, Any, Any].
         """
         # put the model in eval mode.
         self.model.eval()

@@ -25,6 +25,10 @@ class Tokenizer:
     """
 
     def __init__(self, tokenizer_path: str) -> None:
+        """
+        :param tokenizer_path: Path to load the tokenizer from.
+        :type tokenizer_path: str.
+        """
         self.sp = sp.SentencePieceProcessor()
         self.sp.Load(tokenizer_path)
 
@@ -40,6 +44,10 @@ class Tokenizer:
     ):
         """
         Static method to train the tokenizer using SentencePieceTrainer class.
+
+        :param corpus_path: Path to the corpus file to train the tokenizer.
+        :type corpus_path: str.
+
         """
         print("Training SentencePiece on the given data.")
 
