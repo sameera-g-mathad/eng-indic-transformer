@@ -98,6 +98,7 @@ class Trainer:
         device: DeviceType,
         predict_input: str | None = None,
         predict_target: str | None = None,
+        actual_target: str | None = None,
         max_tokens: int | None = 100,
     ) -> dict:
         """
@@ -125,6 +126,9 @@ class Trainer:
         :param predict_target: The target prefix to be provided to let the
         decoder predict next token which is optional.
         :type predict_target: str | None.
+        :param acutal_target: The actual target which was supposed to be predicted that is
+                              optional.
+        :type actual_target: str | None.
         :param max_tokens: Max tokens to be predicted if predict_input and predict_target
         is provided.
         :type max_tokens: int | None.
@@ -200,6 +204,9 @@ class Trainer:
                 ):
                     result += self.tokenizer.decode(token)
 
+                # print the actual target:
+                print(f"Actual target: {actual_target}")
+                print("\n")
                 # print the resultant prediction.
                 print(f"Predicted target: {result}")
 
