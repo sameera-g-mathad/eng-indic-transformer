@@ -96,8 +96,9 @@ class Trainer:
         test_dataloader: torch.utils.data.DataLoader | None,
         epochs: int,
         device: DeviceType,
+        batch_size_to_predict: int | None,
         predict_input: str | None = None,
-        predict_target: str | None = None,
+        target_prefix: str | None = None,
         actual_target: str | None = None,
         max_tokens: int | None = 100,
     ) -> dict:
@@ -107,7 +108,7 @@ class Trainer:
         If test_dataloader is provided, then `Tokenizer.test()` is called
         to run the model to evaluate the model on unseen data.
 
-        If predict_input and predict_target is provided, then `Tokenizer.predict()`
+        If predict_input and target_prefix is provided, then `Tokenizer.predict()`
         method is called internally and the result is printed.
 
         :param train_dataloader: Train dataloader.
@@ -120,16 +121,19 @@ class Trainer:
         :type epochs: int.
         :param device: Device to move the tensors to.
         :type device: 'cpu' | 'cuda'.
+        :param batch_size_to_predict: Batch size after which the model will be tested
+                                      for predictions.
+        :type batch_size_to_predict: int | None
         :param predict_input: The input string of the source text to predict the
         performance of the model after every epoch which is optional.
         :type predict_input: str | None.
-        :param predict_target: The target prefix to be provided to let the
+        :param target_prefix: The target prefix to be provided to let the
         decoder predict next token which is optional.
-        :type predict_target: str | None.
+        :type target_prefix: str | None.
         :param acutal_target: The actual target which was supposed to be predicted that is
                               optional.
         :type actual_target: str | None.
-        :param max_tokens: Max tokens to be predicted if predict_input and predict_target
+        :param max_tokens: Max tokens to be predicted if predict_input and target_prefix
         is provided.
         :type max_tokens: int | None.
 
@@ -141,18 +145,14 @@ class Trainer:
         test_loss_list = []
 
         for epoch in tqdm(range(epochs)):
-            print(f"----- Epoch {epoch} -----")
-
-            # put the model to train mode.
-            self.model.train()
-
             train_loss = 0
             test_loss = 0
 
             # loop over the dataloader
-            for _idx, (x, y_in, y_out) in enumerate(
-                tqdm(train_dataloader, leave=True, ncols=100)
-            ):
+            for _idx, (x, y_in, y_out) in enumerate(tqdm(train_dataloader, leave=True)):
+                # put the model to train mode.
+                self.model.train()
+
                 # move the input to respective device
                 x, y_in, y_out = self.move(x, y_in, y_out, device=device)
 
@@ -174,9 +174,16 @@ class Trainer:
                 # update weights
                 self.optimizer.step()
 
-                # if (idx + 1) % 100 == 0: # changed to 100 from 20
-                #     self.save_checkpoint()
-                #     print(f"{epoch} Epoch: Model checkpoint saved after {idx + 1} batch.")
+                # if batch_size_to_predict is provided with all the other
+                # parameters, the model will be tested to check how well it predicts.
+                if batch_size_to_predict and (_idx + 1) % batch_size_to_predict == 0:
+                    self._log_prediction(
+                        predict_input=predict_input,
+                        target_prefix=target_prefix,
+                        actual_target=actual_target,
+                        max_tokens=max_tokens,
+                        device=device,
+                    )
 
                 # print(f"Batch {idx} complete")
 
@@ -191,24 +198,17 @@ class Trainer:
                 test_loss = self.test(test_dataloader, device)
                 test_loss_list.append(test_loss)
 
-            print(f"Training Loss: {avg_train_loss}, Test Loss: {test_loss}")
+            print(
+                f"Epoch {epoch} --> Training Loss: {avg_train_loss}, Test Loss: {test_loss}"
+            )
 
-            # print the prediction of the inference.
-            if predict_input and predict_target and max_tokens:
-                # start with predict_target as output.
-                result = predict_target
-
-                # collect the yielded result.
-                for token in self.predict(
-                    predict_input, predict_target, max_tokens, device
-                ):
-                    result += self.tokenizer.decode(token)
-
-                # print the actual target:
-                print(f"Actual target: {actual_target}")
-                print("\n")
-                # print the resultant prediction.
-                print(f"Predicted target: {result}")
+            self._log_prediction(
+                predict_input=predict_input,
+                target_prefix=target_prefix,
+                actual_target=actual_target,
+                max_tokens=max_tokens,
+                device=device,
+            )
 
             print(f"Saving checkpoint for epoch: {epoch}")
             self._save_checkpoint()
@@ -216,6 +216,30 @@ class Trainer:
 
         # return the result back.
         return {"train_loss": train_loss_list, "test_loss": test_loss_list}
+
+    def _log_prediction(
+        self,
+        predict_input: str | None,
+        target_prefix: str | None,
+        actual_target: str | None,
+        max_tokens: int | None,
+        device: DeviceType = "cpu",
+    ):
+        # print the prediction of the inference.
+        if predict_input and target_prefix and max_tokens:
+            # start with target_prefix as output.
+            result = target_prefix
+
+            # collect the yielded result.
+            for token in self.predict(predict_input, target_prefix, max_tokens, device):
+                result += self.tokenizer.decode(token)
+
+            # print the actual target:
+            print(f"Actual target:\n {actual_target}")
+            # print the resultant prediction.
+            print(f"Predicted target:\n {result}")
+        else:
+            print("All the inputs for prediction not given.")
 
     def test(
         self,
@@ -317,8 +341,6 @@ class Trainer:
 
             # caculate the encoder state once for inference.
             memory = self.model.encode(x)
-
-            print(memory.shape)
 
             # rest the caches
             # self.model.reset_cache()

@@ -1,1 +1,3 @@
 pipreqs
+jupyter
+ipywidgets
