@@ -217,30 +217,6 @@ class Trainer:
         # return the result back.
         return {"train_loss": train_loss_list, "test_loss": test_loss_list}
 
-    def _log_prediction(
-        self,
-        predict_input: str | None,
-        target_prefix: str | None,
-        actual_target: str | None,
-        max_tokens: int | None,
-        device: DeviceType = "cpu",
-    ):
-        # print the prediction of the inference.
-        if predict_input and target_prefix and max_tokens:
-            # start with target_prefix as output.
-            result = target_prefix
-
-            # collect the yielded result.
-            for token in self.predict(predict_input, target_prefix, max_tokens, device):
-                result += self.tokenizer.decode(token)
-
-            # print the actual target:
-            print(f"Actual target:\n {actual_target}")
-            # print the resultant prediction.
-            print(f"Predicted target:\n {result}")
-        else:
-            print("All the inputs for prediction not given.")
-
     def test(
         self,
         test_dataloader: torch.utils.data.DataLoader,
@@ -303,6 +279,46 @@ class Trainer:
         checkpoint = torch.load(self.path)
         self.model.load_state_dict(checkpoint["model"])
         self.optimizer.load_state_dict(checkpoint["optimizer"])
+
+    def _log_prediction(
+        self,
+        predict_input: str | None,
+        target_prefix: str | None,
+        actual_target: str | None,
+        max_tokens: int | None,
+        device: DeviceType = "cpu",
+    ):
+        """
+        :param predict_input: The input string of the source text to predict the
+        performance of the model after every epoch which is optional.
+        :type predict_input: str | None.
+        :param target_prefix: The target prefix to be provided to let the
+        decoder predict next token which is optional.
+        :type target_prefix: str | None.
+        :param acutal_target: The actual target which was supposed to be predicted that is
+                              optional.
+        :type actual_target: str | None.
+        :param max_tokens: Max tokens to be predicted if predict_input and target_prefix
+        is provided.
+        :type max_tokens: int | None.
+        :param device: Device to move the tensors to.
+        :type device: 'cpu' | 'cuda'.
+        """
+        # print the prediction of the inference.
+        if predict_input and target_prefix and max_tokens:
+            # start with target_prefix as output.
+            result = target_prefix
+
+            # collect the yielded result.
+            for token in self.predict(predict_input, target_prefix, max_tokens, device):
+                result += self.tokenizer.decode(token)
+
+            # print the actual target:
+            print(f"Actual target:\n {actual_target}")
+            # print the resultant prediction.
+            print(f"Predicted target:\n {result}")
+        else:
+            print("All the inputs for prediction not given.")
 
     def predict(
         self,
