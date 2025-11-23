@@ -209,4 +209,3 @@ __marimo__/
 # can be downloaded using the /notebooks/download_data.ipynb
 /data/* 
 /models/*
-/tokenizer/*
