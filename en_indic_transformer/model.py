@@ -199,7 +199,7 @@ class Trainer:
                 test_loss_list.append(test_loss)
 
             print(
-                f"Epoch {epoch} --> Training Loss: {avg_train_loss}, Test Loss: {test_loss}"
+                f"Epoch {epoch + 1} --> Training Loss: {avg_train_loss}, Test Loss: {test_loss}"
             )
 
             self._log_prediction(
@@ -305,18 +305,23 @@ class Trainer:
         :type device: 'cpu' | 'cuda'.
         """
         # print the prediction of the inference.
-        if predict_input and target_prefix and max_tokens:
+        if predict_input and target_prefix and max_tokens and actual_target:
             # start with target_prefix as output.
             result = target_prefix
 
             # collect the yielded result.
-            for token in self.predict(predict_input, target_prefix, max_tokens, device):
+            for token in self.predict(
+                predict_input,
+                target_prefix,
+                max_tokens,
+                self.tokenizer.get_piece_id("<|endoftext|>"),
+                device,
+            ):
                 result += self.tokenizer.decode(token)
 
-            # print the actual target:
-            print(f"Actual target:\n {actual_target}")
-            # print the resultant prediction.
-            print(f"Predicted target:\n {result}")
+            print("Source Input", predict_input)
+            print("Actual Target", actual_target)
+            print("Predicted Target", result)
         else:
             print("All the inputs for prediction not given.")
 
@@ -325,6 +330,7 @@ class Trainer:
         inputs: str,
         target: str,
         max_tokens: int,  # context size.
+        stop_token: int,
         device: DeviceType = "cpu",
     ) -> Generator[torch.Tensor, Any, Any]:
         """
@@ -337,8 +343,14 @@ class Trainer:
                        Should pass the start token, like <|kannda|
                        or <|hindi|>
         :type target: str.
+
         :param max_tokens: Maximum tokens allowed for token generation.
         :type max_tokens: int.
+
+        :param stop_token: Token to stop the generation before maximum tokens
+                           limit is met.
+        :type stop_token: int.
+
         :param device: Device to move the tensors to.
         :type device: 'cpu' | 'cuda'.
 
@@ -374,7 +386,7 @@ class Trainer:
                 prediction = torch.argmax(last_token, dim=-1)
 
                 # if the prediction is <|endoftext|>, stop yielding.
-                if prediction.item() == 50256:
+                if prediction.item() == stop_token:
                     break
 
                 # update y to prediction as the next query and
