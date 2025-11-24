@@ -7,3 +7,4 @@ pyarrow
 fastparquet
 huggingface_hub
 sentencepiece
+nltk
