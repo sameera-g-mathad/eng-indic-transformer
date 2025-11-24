@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any, Generator, Literal, Optional
 from tqdm.auto import tqdm
+from nltk.translate.bleu_score import corpus_bleu
 import torch
 from torch import nn, optim
 from en_indic_transformer import Transformer, Tokenizer
@@ -143,6 +144,7 @@ class Trainer:
         """
         train_loss_list = []
         test_loss_list = []
+        bleu_list = []
 
         for epoch in tqdm(range(epochs)):
             train_loss = 0
@@ -193,13 +195,22 @@ class Trainer:
             # append the calculated loss
             train_loss_list.append(avg_train_loss)
 
+            # first save the trained model for a particular epoch.
+            print(f"Saving checkpoint for epoch: {epoch}")
+            self._save_checkpoint()
+
             # if test_dataloader is provided calculate average test loss.
             if isinstance(test_dataloader, torch.utils.data.DataLoader):
-                test_loss = self.test(test_dataloader, device)
+                test_dict = self.test(test_dataloader, device)
+                test_loss = test_dict["test_loss"]  # get the test loss
+                bleu = test_dict["bleu"]  # get the bleu score
+
+                # append test and bleu loss
                 test_loss_list.append(test_loss)
+                bleu_list.append(bleu)
 
             print(
-                f"Epoch {epoch + 1} --> Training Loss: {avg_train_loss}, Test Loss: {test_loss}"
+                f"Epoch {epoch + 1} --> Training Loss: {avg_train_loss}, Test Loss: {test_loss}, Bleu (Test data): {bleu}"
             )
 
             self._log_prediction(
@@ -210,10 +221,6 @@ class Trainer:
                 device=device,
             )
 
-            print(f"Saving checkpoint for epoch: {epoch}")
-            self._save_checkpoint()
-            print("-----x-----")
-
         # return the result back.
         return {"train_loss": train_loss_list, "test_loss": test_loss_list}
 
@@ -221,7 +228,7 @@ class Trainer:
         self,
         test_dataloader: torch.utils.data.DataLoader,
         device: DeviceType,
-    ) -> float:
+    ) -> dict:
         """
         To test the model against a dedicated test_dataloader.
 
@@ -231,19 +238,25 @@ class Trainer:
         :param device: Device to move the tensors to.
         :type device: 'cpu' | 'cuda'.
 
-        :returns: Test loss.
-        :rtype: float.
+        :returns: Returns the dictionary containing bleu score and
+                  test loss
+        :rtype: dict.
         """
 
         # put the model in eval mode.
         self.model.eval()
 
         test_loss = 0
+        references: list = []
+        candidates: list = []
 
         with torch.inference_mode():
-            # for src, target_in, target_out in test_dataloader.
-            for x, y_in, y_out in tqdm(test_dataloader, leave=False, ncols=100):
-
+            # for src, target_in, target_out, raw_source, raw_target_in, raw_target_out
+            #  in test_dataloader.
+            for x, y_in, y_out, _, _, unpadded_y_out in tqdm(
+                test_dataloader, leave=False, ncols=100
+            ):
+                batch_size = x.shape[0]  # get the batch size.
                 # move inputs to respective devices.
                 x, y_in, y_out = self.move(x, y_in, y_out, device=device)
 
@@ -253,8 +266,21 @@ class Trainer:
                 # accumulate the test_loss
                 test_loss += self.loss_fn(y_logits.flatten(0, 1), y_out.view(-1)).item()
 
+                # get the prediction(candidate) by taking argmax in last dimension
+                prediction = torch.argmax(y_logits, dim=-1)
+
+                # add y_out to the references and
+                # prediction to candidates for bleu
+                # calculation. Always calculated in cpu.
+                for i in range(batch_size):
+                    # corpus_bleu expects list(list(list(str)))
+                    references.append([unpadded_y_out[i].tolist()])
+                    candidates.append(prediction[i].tolist())
+
+        bleu_score = corpus_bleu(references, candidates)
+        avg_test_loss = test_loss / len(test_dataloader)
         # return the average test loss
-        return test_loss / len(test_dataloader)
+        return {"test_loss": avg_test_loss, "bleu": bleu_score}
 
     def _save_checkpoint(self):
         """

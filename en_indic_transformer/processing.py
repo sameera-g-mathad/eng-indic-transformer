@@ -137,23 +137,31 @@ class TranslationDataLoader(DataLoader):
                             ignore_index (-100) to avoid loss calculation.
         :type ignore_index: int.
 
-        :returns: A tuple of padded input, target_in and target out tokens.
+        :returns: A tuple of padded input, target_in and target out tokens along with
+                  the original sequences.
         :rtype: tuple.
         """
-        sources, target_ins, target_outs = [], [], []
+        sources, targets_in, targets_out = [], [], []
 
         for source, target_in, target_out in batch:
             sources.append(source)  # take all the source tokens
-            target_ins.append(target_in)  # take all the target in tokens
-            target_outs.append(target_out)  # take all the target out tokens
+            targets_in.append(target_in)  # take all the target in tokens
+            targets_out.append(target_out)  # take all the target out tokens
 
         # pad source, target_in, target_out tokens
         source_padded = pad_sequence(sources, batch_first=True, padding_value=pad_val)
         target_in_padded = pad_sequence(
-            target_ins, batch_first=True, padding_value=pad_val
+            targets_in, batch_first=True, padding_value=pad_val
         )
         target_out_padded = pad_sequence(
-            target_outs, batch_first=True, padding_value=ignore_index
+            targets_out, batch_first=True, padding_value=ignore_index
         )
 
-        return source_padded, target_in_padded, target_out_padded
+        return (
+            source_padded,
+            target_in_padded,
+            target_out_padded,
+            sources,
+            targets_in,
+            targets_out,
+        )
