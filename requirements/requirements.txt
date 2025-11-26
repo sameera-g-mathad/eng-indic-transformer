@@ -8,3 +8,4 @@ fastparquet
 huggingface_hub
 sentencepiece
 nltk
+python-dotenv
