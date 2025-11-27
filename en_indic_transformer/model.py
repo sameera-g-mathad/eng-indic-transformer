@@ -151,7 +151,8 @@ class Trainer:
             test_loss = 0
 
             # loop over the dataloader
-            for _idx, (x, y_in, y_out) in enumerate(tqdm(train_dataloader, leave=True)):
+            for _idx, batch in enumerate(tqdm(train_dataloader, leave=True)):
+                (x, y_in, y_out) = batch[:3]
                 # put the model to train mode.
                 self.model.train()
 
@@ -210,7 +211,10 @@ class Trainer:
                 bleu_list.append(bleu)
 
             print(
-                f"Epoch {epoch + 1} --> Training Loss: {avg_train_loss}, Test Loss: {test_loss}, Bleu (Test data): {bleu}"
+                f"Epoch {epoch + 1} -->"
+                f"Training Loss: {avg_train_loss},"
+                f"Test Loss: {test_loss},"
+                f"Bleu (Test data): {bleu}"
             )
 
             self._log_prediction(
