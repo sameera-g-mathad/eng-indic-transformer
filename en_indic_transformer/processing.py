@@ -62,14 +62,14 @@ class TranslationDataset(Dataset):
 
         # ex: <|english|> ....src...<|endoftext|>
         inputs = self.tokenizer.encode(
-            source, prefix_str=self.src_prepend, suffix_str=self.endoftext
+            f"{source}", prefix_str=self.src_prepend, suffix_str=self.endoftext
         )
 
         # ex: <|english|> ....target...
-        targets_in = self.tokenizer.encode(target_str, prefix_str=self.target_prepend)
+        targets_in = self.tokenizer.encode(f"{target_str}", prefix_str=self.target_prepend)
 
         # ex: ....target...<|endoftext|>
-        targets_out = self.tokenizer.encode(target_str, suffix_str=self.endoftext)
+        targets_out = self.tokenizer.encode(f"{target_str}", suffix_str=self.endoftext)
 
         # return a tuple back of encoded ids back.
         return (inputs, targets_in, targets_out)
