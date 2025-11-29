@@ -24,6 +24,7 @@ class TranslationDataset(Dataset):
         src_prepend_value: str,
         target_prepend_value: str,
         endoftext: str = "<|endoftext|>",
+        max_length: int = 1024,
     ):
         """
         :param src: List of source sequences.
@@ -42,6 +43,10 @@ class TranslationDataset(Dataset):
         :param endoftext: Suffix to append both input and target
         sequences.
         :type endoftext: str.
+
+        :param max_length: Ususally the context length upto which the
+                           sequence is allowed.
+        :type max_length: int.
         """
         assert len(src) == len(
             target
@@ -52,6 +57,7 @@ class TranslationDataset(Dataset):
         self.src_prepend = src_prepend_value
         self.target_prepend = target_prepend_value
         self.endoftext = endoftext
+        self.max_length = max_length
 
     def __len__(self):
         return len(self.target)
@@ -70,6 +76,20 @@ class TranslationDataset(Dataset):
 
         # ex: ....target...<|endoftext|>
         targets_out = self.tokenizer.encode(f"{target_str}", suffix_str=self.endoftext)
+
+        if len(inputs) > self.max_length:
+            inputs = torch.cat(
+                [inputs[: self.max_length - 1], inputs[-1]], dim=-1
+            )  # truncate and add a endoftext token
+
+        # targets_in doesn't have a eos token anyways.
+        if len(targets_in) > self.max_length:
+            targets_in = targets_in[: self.max_length]
+
+        if len(targets_out) > self.max_length:
+            targets_out = torch.cat(
+                [targets_out[: self.max_length - 1], targets_out[-1]], dim=-1
+            )
 
         # return a tuple back of encoded ids back.
         return (inputs, targets_in, targets_out)
