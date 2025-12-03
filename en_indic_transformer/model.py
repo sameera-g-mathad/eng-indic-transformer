@@ -180,6 +180,11 @@ class Trainer:
                 # if batch_size_to_predict is provided with all the other
                 # parameters, the model will be tested to check how well it predicts.
                 if batch_size_to_predict and (_idx + 1) % batch_size_to_predict == 0:
+                    print(
+                        f"Saving checkpoint for epoch: {epoch + 1}, batch: {_idx + 1}"
+                    )
+                    self._save_checkpoint()
+
                     self._log_prediction(
                         predict_input=predict_input,
                         target_prefix=target_prefix,
@@ -188,8 +193,6 @@ class Trainer:
                         device=device,
                     )
 
-                # print(f"Batch {idx} complete")
-
             # calculate average training loss.
             avg_train_loss = train_loss / len(train_dataloader)
 
@@ -197,7 +200,7 @@ class Trainer:
             train_loss_list.append(avg_train_loss)
 
             # first save the trained model for a particular epoch.
-            print(f"Saving checkpoint for epoch: {epoch}")
+            print(f"Saving checkpoint for epoch: {epoch + 1}")
             self._save_checkpoint()
 
             # if test_dataloader is provided calculate average test loss.
@@ -349,6 +352,8 @@ class Trainer:
             ):
                 result += self.tokenizer.decode(token)
 
+            print("\n")
+            print("=============================")
             print("Source Input", predict_input)
             print("Actual Target", actual_target)
             print("Predicted Target", result)

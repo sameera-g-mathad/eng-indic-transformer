@@ -72,14 +72,16 @@ class TranslationDataset(Dataset):
         )
 
         # ex: <|english|> ....target...
-        targets_in = self.tokenizer.encode(f"{target_str}", prefix_str=self.target_prepend)
+        targets_in = self.tokenizer.encode(
+            f"{target_str}", prefix_str=self.target_prepend
+        )
 
         # ex: ....target...<|endoftext|>
         targets_out = self.tokenizer.encode(f"{target_str}", suffix_str=self.endoftext)
 
         if len(inputs) > self.max_length:
             inputs = torch.cat(
-                [inputs[: self.max_length - 1], inputs[-1]], dim=-1
+                [inputs[: self.max_length - 1], inputs[-1:]], dim=-1
             )  # truncate and add a endoftext token
 
         # targets_in doesn't have a eos token anyways.
@@ -88,7 +90,7 @@ class TranslationDataset(Dataset):
 
         if len(targets_out) > self.max_length:
             targets_out = torch.cat(
-                [targets_out[: self.max_length - 1], targets_out[-1]], dim=-1
+                [targets_out[: self.max_length - 1], targets_out[-1:]], dim=-1
             )
 
         # return a tuple back of encoded ids back.
