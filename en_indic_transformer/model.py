@@ -180,6 +180,8 @@ class Trainer:
                 # if batch_size_to_predict is provided with all the other
                 # parameters, the model will be tested to check how well it predicts.
                 if batch_size_to_predict and (_idx + 1) % batch_size_to_predict == 0:
+                    print("\n")
+                    print("=============================")
                     print(
                         f"Saving checkpoint for epoch: {epoch + 1}, batch: {_idx + 1}"
                     )
@@ -207,7 +209,10 @@ class Trainer:
             if isinstance(test_dataloader, torch.utils.data.DataLoader):
                 test_dict = self.test(test_dataloader, device)
                 test_loss = test_dict["test_loss"]  # get the test loss
-                bleu = test_dict["bleu"]  # get the bleu score
+                # get the bleu score
+                bleu = (
+                    test_dict["bleu"] * 100
+                )  # multliply by 100 to make it a percentage
 
                 # append test and bleu loss
                 test_loss_list.append(test_loss)
@@ -229,7 +234,11 @@ class Trainer:
             )
 
         # return the result back.
-        return {"train_loss": train_loss_list, "test_loss": test_loss_list}
+        return {
+            "train_loss": train_loss_list,
+            "test_loss": test_loss_list,
+            "bleu": bleu_list,
+        }
 
     def test(
         self,
@@ -261,7 +270,7 @@ class Trainer:
             # for src, target_in, target_out, raw_source, raw_target_in, raw_target_out
             #  in test_dataloader.
             for x, y_in, y_out, _, _, unpadded_y_out in tqdm(
-                test_dataloader, leave=False, ncols=100
+                test_dataloader, leave=False
             ):
                 batch_size = x.shape[0]  # get the batch size.
                 # move inputs to respective devices.
@@ -284,6 +293,7 @@ class Trainer:
                     references.append([unpadded_y_out[i].tolist()])
                     candidates.append(prediction[i].tolist())
 
+        print("Calculating Bleu scores over the test data.")
         bleu_score = corpus_bleu(references, candidates)
         avg_test_loss = test_loss / len(test_dataloader)
         # return the average test loss
@@ -300,6 +310,7 @@ class Trainer:
             },
             self.path,
         )
+        print("Model saved successfully!!!")
 
     def _load_checkpoint(self):
         """
@@ -352,8 +363,6 @@ class Trainer:
             ):
                 result += self.tokenizer.decode(token)
 
-            print("\n")
-            print("=============================")
             print("Source Input", predict_input)
             print("Actual Target", actual_target)
             print("Predicted Target", result)
@@ -392,9 +401,10 @@ class Trainer:
         :returns: A generator to yield a torch tensor for every iteration.
         :rtype: Generator[torch.Tensor, Any, Any].
         """
+        # automatically move the model to respective device.
+        self.model.to(device)
         # put the model in eval mode.
         self.model.eval()
-
         with torch.inference_mode():
             # encode both the input and target
             x = self.tokenizer.encode(inputs).unsqueeze(dim=0)  # to make [b, x]
