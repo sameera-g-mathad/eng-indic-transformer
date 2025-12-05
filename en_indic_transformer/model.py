@@ -59,8 +59,8 @@ class Trainer:
         self._initialized = True
         self.path = save_path
 
-        # load the model if one exists already.
-        self._load_checkpoint()
+        # # load the model if one exists already.
+        # self._load_checkpoint()
 
     def move(
         self,
@@ -312,7 +312,7 @@ class Trainer:
         )
         print("Model saved successfully!!!")
 
-    def _load_checkpoint(self):
+    def load_checkpoint(self, device: DeviceType):
         """
         To load the state back into model.
         """
@@ -320,7 +320,7 @@ class Trainer:
             print("Warning: The path do not exist yet.")
             return
         print("Loading chekpoint.")
-        checkpoint = torch.load(self.path)
+        checkpoint = torch.load(self.path, map_location=torch.device(device=device))
         self.model.load_state_dict(checkpoint["model"])
         self.optimizer.load_state_dict(checkpoint["optimizer"])
 
