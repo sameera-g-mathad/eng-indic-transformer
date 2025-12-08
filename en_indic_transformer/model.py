@@ -59,15 +59,17 @@ class Trainer:
         self._initialized = True
         # self.path = save_path
         # this stores only the model.
-        self.model_path = save_path / "models"
+        model_dir = save_path / "models"
+        self.model_path = model_dir / "model.pt"
 
         # stores optimizer state that would be optional to
         # download.
-        self.optimizer_path = save_path / "checkpoints"
+        checkpoint_dir = save_path / "checkpoints"
+        self.optimizer_path = checkpoint_dir / "optimizer.pt"
 
         # create directory for models and optimizer.
-        self.model_path.mkdir(parents=True, exist_ok=True)
-        self.optimizer_path.mkdir(parents=True, exist_ok=True)
+        model_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
         # # load the model if one exists already.
         # self._load_checkpoint()
