@@ -208,6 +208,9 @@ __marimo__/
 
 # can be downloaded using the /notebooks/download_data.ipynb
 /data/* 
+
+# can be downloaded using /notebooks/hf_pull.ipynb
+/checkpoints/*
 /models/*
 /reports/*
 /tokenizer/*
