@@ -45,7 +45,7 @@ class Trainer:
         tokenization of inputs.
         :type tokenizer: Tokenizer.
         :param save_path: Path to store and load models during
-        training and inference.
+        training and inference. Ideally, the home dir of the project.
         :type save_path: pathlib.Path.
         """
         # checks if there is an instance
@@ -57,7 +57,17 @@ class Trainer:
         self.optimizer = optimizer
         self.tokenizer = tokenizer
         self._initialized = True
-        self.path = save_path
+        # self.path = save_path
+        # this stores only the model.
+        self.model_path = save_path / "models"
+
+        # stores optimizer state that would be optional to
+        # download.
+        self.optimizer_path = save_path / "checkpoints"
+
+        # create directory for models and optimizer.
+        self.model_path.mkdir(parents=True, exist_ok=True)
+        self.optimizer_path.mkdir(parents=True, exist_ok=True)
 
         # # load the model if one exists already.
         # self._load_checkpoint()
@@ -303,26 +313,42 @@ class Trainer:
         """
         To save the model to store the model state.
         """
-        torch.save(
-            {
-                "model": self.model.state_dict(),
-                "optimizer": self.optimizer.state_dict(),
-            },
-            self.path,
-        )
-        print("Model saved successfully!!!")
+        # torch.save(
+        #     {
+        #         "model": self.model.state_dict(),
+        #         "optimizer": self.optimizer.state_dict(),
+        #     },
+        #     self.path,
+        # )
+        print("Saving Model...")
+        torch.save(self.model.state_dict(), self.model_path / "model.pt")
+
+        print("Saving Optimizer...")
+        torch.save(self.optimizer.state_dict(), self.optimizer_path / "optimizer.pt")
+
+        print("Checkpoint Saved!!!")
 
     def load_checkpoint(self, device: DeviceType):
         """
         To load the state back into model.
         """
-        if not self.path.exists():
+        if not self.model_path.exists() or not self.optimizer_path.exists():
             print("Warning: The path do not exist yet.")
             return
-        print("Loading chekpoint.")
-        checkpoint = torch.load(self.path, map_location=torch.device(device=device))
-        self.model.load_state_dict(checkpoint["model"])
-        self.optimizer.load_state_dict(checkpoint["optimizer"])
+        print("Loading Model...")
+        self.model.load_state_dict(
+            torch.load(self.model_path, map_location=torch.device(device=device))
+        )
+
+        print("Loading Optimizer...")
+        self.optimizer.load_state_dict(
+            torch.load(self.optimizer_path, map_location=torch.device(device=device))
+        )
+
+        print("Checkpoint Loaded!!!")
+        # checkpoint = torch.load(self.path, map_location=torch.device(device=device))
+        # self.model.load_state_dict(checkpoint["model"])
+        # self.optimizer.load_state_dict(checkpoint["optimizer"])
 
     def _log_prediction(
         self,
