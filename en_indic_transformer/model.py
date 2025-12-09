@@ -204,7 +204,7 @@ class Trainer:
                         target_prefix=target_prefix,
                         actual_target=actual_target,
                         max_tokens=max_tokens,
-                        device=device,
+                        # device=device,
                     )
 
             # calculate average training loss.
@@ -242,7 +242,7 @@ class Trainer:
                 target_prefix=target_prefix,
                 actual_target=actual_target,
                 max_tokens=max_tokens,
-                device=device,
+                # device=device,
             )
 
         # return the result back.
@@ -358,7 +358,7 @@ class Trainer:
         target_prefix: str | None,
         actual_target: str | None,
         max_tokens: int | None,
-        device: DeviceType = "cpu",
+        # device: DeviceType = "cpu",
     ):
         """
         :param predict_input: The input string of the source text to predict the
@@ -382,12 +382,13 @@ class Trainer:
             result = target_prefix
 
             # collect the yielded result.
-            for token in self.predict(
+            for token in Predictor.predict(
+                self.model,
+                self.tokenizer,
                 predict_input,
                 target_prefix,
                 max_tokens,
                 self.tokenizer.get_piece_id("<|endoftext|>"),
-                device,
             ):
                 result += self.tokenizer.decode(token)
 
@@ -397,13 +398,21 @@ class Trainer:
         else:
             print("All the inputs for prediction not given.")
 
+
+class Predictor:
+    """
+    A class to perform prediction on a trained model.
+    """
+
+    @staticmethod
     def predict(
-        self,
+        model: Transformer,
+        tokenizer: Tokenizer,
         inputs: str,
         target: str,
         max_tokens: int,  # context size.
         stop_token: int,
-        device: DeviceType = "cpu",
+        # device: DeviceType = "cpu",
     ) -> Generator[torch.Tensor, Any, Any]:
         """
         Method to predict tokens for the given input and
@@ -430,18 +439,19 @@ class Trainer:
         :rtype: Generator[torch.Tensor, Any, Any].
         """
         # automatically move the model to respective device.
-        self.model.to(device)
+        # model.to(device)
+        model.cpu()
         # put the model in eval mode.
-        self.model.eval()
+        model.eval()
         with torch.inference_mode():
             # encode both the input and target
-            x = self.tokenizer.encode(inputs).unsqueeze(dim=0)  # to make [b, x]
-            y = self.tokenizer.encode(target).unsqueeze(dim=0)  # to make [b, y]
+            x = tokenizer.encode(inputs).unsqueeze(dim=0)  # to make [b, x]
+            y = tokenizer.encode(target).unsqueeze(dim=0)  # to make [b, y]
             # move the inputs to respective devices.
-            x, y, _ = self.move(x, y, device=device)
+            # x, y, _ = self.move(x, y, device=device)
 
             # caculate the encoder state once for inference.
-            memory = self.model.encode(x)
+            memory = model.encode(x)
 
             # rest the caches
             # self.model.reset_cache()
@@ -450,7 +460,7 @@ class Trainer:
             for _ in range(max_tokens):
 
                 # predict the next tokens.
-                y_logits = self.model.decode(y, memory, inference=True)
+                y_logits = model.decode(y, memory, inference=True)
 
                 # take the last token as it is the predicted token.
                 last_token = y_logits[:, -1, :]
