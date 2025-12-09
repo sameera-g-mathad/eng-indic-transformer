@@ -323,10 +323,10 @@ class Trainer:
         #     self.path,
         # )
         print("Saving Model...")
-        torch.save(self.model.state_dict(), self.model_path / "model.pt")
+        torch.save(self.model.state_dict(), self.model_path)
 
         print("Saving Optimizer...")
-        torch.save(self.optimizer.state_dict(), self.optimizer_path / "optimizer.pt")
+        torch.save(self.optimizer.state_dict(), self.optimizer_path)
 
         print("Checkpoint Saved!!!")
 
