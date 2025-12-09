@@ -4,6 +4,7 @@ directory.
 """
 
 __all__ = [
+    "Predictor",
     "Tokenizer",
     "Transformer",
     "TranslationDataset",
@@ -13,5 +14,5 @@ __all__ = [
 
 from .tokenizer import Tokenizer
 from .components import Transformer
-from .model import Trainer
+from .model import Predictor, Trainer
 from .processing import TranslationDataset, TranslationDataLoader
