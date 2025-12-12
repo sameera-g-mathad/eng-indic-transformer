@@ -3,12 +3,13 @@
 This repository contains the code for machine translation transformer in pytorch for English to Hindi. This project is
 for educational purpose only for me to learn properly about transformers. The intention of this project is to understand the implementation of transformer architecture for machine translation, learn and implement the transformer architecture from scratch in pytorch and get a hands-on experience of the working of various components of transformer architecture such as multi-head attention, positional encoding, feed forward neural networks etc. Also, learn how cross attention works in the decoder part of the transformer along with key-value cahcing and quantization techniques to optimize the model for faster inference.
 
-==HF repository: [smathad/eng-indic-transformer](https://huggingface.co/smathad/eng-indic-transformer).==
+**_HF repository: [smathad/eng-indic-transformer](https://huggingface.co/smathad/eng-indic-transformer)._**
 
-======Note======
-The model present in HF directory is currently trained for 10 epochs on English to Hindi dataset with ==~6 BLEU==. Report can be found [here](https://huggingface.co/smathad/eng-indic-transformer/tree/main/reports).
+**Note**
 
-### Cloning the repository
+The model present in HF directory is currently trained for 10 epochs on English to Hindi dataset with **~6 BLEU**. Report can be found [here](https://huggingface.co/smathad/eng-indic-transformer/tree/main/reports).
+
+### Cloning the repository:
 
 ```bash
 # https
@@ -19,7 +20,7 @@ git clone git@github.com:sameera-g-mathad/eng-indic-transformer.git
 
 ```
 
-### Virtual Environment Setup
+### Virtual Environment Setup:
 
 ```bash
 # Create virtual environment
@@ -30,7 +31,7 @@ source env/bin/activate  # On Mac
 
 ```
 
-### Install Dependencies
+### Install Dependencies:
 
 ```bash
 
@@ -42,7 +43,7 @@ make install_dev
 
 ```
 
-### Env file setup
+### Env file setup:
 
 Create a `.env` file in the root directory of the repository and add the following variables:
 
@@ -50,19 +51,24 @@ Create a `.env` file in the root directory of the repository and add the followi
 HF_TOKEN=<your_huggingface_token>
 ```
 
-### Training the model
+### Datasets:
+
+The datasets used for training the model are as follows:
+
+- Hindi dataset: [damerajee/english-to-hindi-l](https://huggingface.co/datasets/damerajee/english-to-hindi-l).
+- Kannada dataset: [damerajee/en-kannada](https://huggingface.co/datasets/damerajee/en-kannada).
+
+### Training the model:
 
 To train the model, run notebooks in the `notebooks/train` folder sequentially.
 
-- `(1)\_download_data.ipynb` : Contains code to download the dataset, for both English-Hindi and English-Kannada language pairs. The datasets be downloaded into `/data` folder.
-  - Hindi dataset: [damerajee/english-to-hindi-l](https://huggingface.co/datasets/damerajee/english-to-hindi-l).
-  - Kannada dataset: [damerajee/en-kannada](https://huggingface.co/datasets/damerajee/en-kannada).
-- `(2)\_dataset.ipynb`: Contains code to train the tokenizer using SentencePiece library. **Optional** as pre-trained tokenizer files are provided in the `tokenizers` folder in the hf directory.
-- `(3)\_hf_pull.ipynb`: Contains code to pull the pre-trained tokenizer, model, optimizer and reports from the HF repository highlighted above. All the cells can be run sequentially to get the pre-trained model and tokenizer. Tokenizer files are saved in the `/tokenizers` folder and model in `/models` and optimizer checkpoints are saved in the `/checkpoints`, reports in `/reports` folder.
-- `(4)\_en_hindi_train.ipynb`: Contains code to train the transformer model for machine translation. The model is trained using the pre-trained tokenizer and dataset downloaded in the previous steps. The trained model checkpoints are saved in the `/checkpoints` folder.
+- `(1)_download_data.ipynb` : Contains code to download the dataset, for both English-Hindi and English-Kannada language pairs. The datasets be downloaded into `/data` folder.
+- `(2)_dataset.ipynb`: Contains code to train the tokenizer using SentencePiece library. **Optional** as pre-trained tokenizer files are provided in the `tokenizers` folder in the hf directory.
+- `(3)_hf_pull.ipynb`: Contains code to pull the pre-trained tokenizer, model, optimizer and reports from the HF repository highlighted above. All the cells can be run sequentially to get the pre-trained model and tokenizer. Tokenizer files are saved in the `/tokenizers` folder and model in `/models` and optimizer checkpoints are saved in the `/checkpoints`, reports in `/reports` folder.
+- `(4)_en_hindi_train.ipynb`: Contains code to train the transformer model for machine translation. The model is trained using the pre-trained tokenizer and dataset downloaded in the previous steps. The trained model checkpoints are saved in the `/checkpoints` folder.
 - `(5)_hf_push.ipynb`: Contains code to push the trained model, tokenizer, optimizer and reports to the HF repository highlighted above. Also, contains piece of code to tag the commit for versioning.
 
-### Inference
+### Inference:
 
 To perform inference using the trained model, run the notebook in the `notebooks/inference` folder.
 
@@ -80,6 +86,8 @@ This folder contains the implementation of the transformer architecture for mach
 
 ### Results (English to Hindi Translation so far):
 
+Results after training for 10 epochs on English to Hindi dataset.
+
 ```csv
 train_loss,test_loss,bleu
 5.423146942715729,4.58064692665196,1.318473518518219
@@ -93,3 +101,8 @@ train_loss,test_loss,bleu
 3.0678364998554204,3.221580374080216,5.80111526889886
 3.019255864361234,3.19820795995313,5.957311082953983
 ```
+
+### References:
+
+- Sebastian Raschka, “Build a Large Language Model (From Scratch)”.
+- (Youtube video - Aladdin Persson) [Pytorch Transformers from Scratch (Attention is all you need)](https://www.youtube.com/watch?v=U0s0f995w14&list=PLhhyoLH6IjfxeoooqP9rhU3HJIAVAJ3Vz&index=40).
