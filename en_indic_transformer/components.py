@@ -551,7 +551,12 @@ class Decoder(nn.Module):
         self.final_layer = nn.Linear(emb_dim, vocab_size, bias=bias)
 
     def forward(
-        self, x: torch.Tensor, y: torch.Tensor, inference: bool = False
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        pos_start: int,
+        pos_end: int,
+        inference: bool = False,
     ) -> torch.Tensor:
         """
         Computes token_embeddings, positional_embeddings, and transformer(decoder layer)
@@ -569,8 +574,12 @@ class Decoder(nn.Module):
         :rtype: torch.Tensor.
         """
         _, context = x.shape
+        # use the entire context while training.
+        if not inference:
+            pos_start = 0
+            pos_end = context
         x = self.token_embeddings(x) + self.pos_embeddings(
-            torch.arange(0, context, device=x.device)
+            torch.arange(pos_start, pos_end, device=x.device)
         )
         for dec_layer in self.decoder_layers:
             x = dec_layer(x, y, inference)
@@ -831,7 +840,12 @@ class Transformer(nn.Module):
         return self.encoder(src)
 
     def decode(
-        self, target: torch.Tensor, memory: torch.Tensor, inference: bool
+        self,
+        target: torch.Tensor,
+        memory: torch.Tensor,
+        pos_start: int,
+        pos_end: int,
+        inference: bool,
     ) -> torch.Tensor:
         """
         Method to only decode the target vector during inference.
@@ -841,13 +855,19 @@ class Transformer(nn.Module):
         :param memory: The output of encoder to be passed as memory for
                        cross attention.
         :type memory: torch.Tensor.
+        :param pos_start: The starting position index to create positional
+                          embeddings during inference.
+        :type pos_start: int.
+        :param pos_end: The ending position index to create positional
+                        embeddings during inference.
+        :type pos_end: int.
         :param inference: Boolean value that can be used for caching.
         :type inference: bool.
 
         :returns: Output of decoder.
         :rtype: torch.Tensor.
         """
-        return self.decoder(target, memory, inference=inference)
+        return self.decoder(target, memory, pos_start, pos_end, inference=inference)
 
     def reset_cache(self):
         """

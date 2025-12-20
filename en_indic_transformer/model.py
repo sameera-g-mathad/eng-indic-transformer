@@ -454,13 +454,17 @@ class Predictor:
             memory = model.encode(x)
 
             # rest the caches
-            # self.model.reset_cache()
+            model.reset_cache()
+
+            # set y lengths for adding positions to key value cache.
+            y_start = 0
+            y_end = y.shape[1]
 
             # Repeat for max_token times
             for _ in range(max_tokens):
 
                 # predict the next tokens.
-                y_logits = model.decode(y, memory, inference=True)
+                y_logits = model.decode(y, memory, y_start, y_end, inference=True)
 
                 # take the last token as it is the predicted token.
                 last_token = y_logits[:, -1, :]
@@ -474,7 +478,12 @@ class Predictor:
 
                 # update y to prediction as the next query and
                 # match the dimension.
-                # y = torch.unsqueeze(prediction, dim=0)  # [b, prediction]
-                y = torch.cat([y, prediction.unsqueeze(0)], dim=1)
+                y = torch.unsqueeze(prediction, dim=0)  # [b, prediction]
+
+                # update the positions
+                y_start, y_end = y_end, y_end + 1
+
+                # y = torch.cat([y, prediction.unsqueeze(0)], dim=1)
+
                 # yield the prediction back.
                 yield prediction
