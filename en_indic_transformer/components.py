@@ -224,8 +224,8 @@ class MultiHeadAttention(nn.Module):
         :param inference: Boolean value that can be used for caching.
         :type inference: bool.
         """
-        # if inference:
-        #     return self.inference_attn(x, y)
+        if inference:
+            return self.inference_attn(x, y)
 
         return self.train_attn(x, y)
 
