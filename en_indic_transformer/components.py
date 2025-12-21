@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 import torch
 from torch import nn
 
@@ -554,8 +554,8 @@ class Decoder(nn.Module):
         self,
         x: torch.Tensor,
         y: torch.Tensor,
-        pos_start: int,
-        pos_end: int,
+        pos_start: Optional[int] = None,
+        pos_end: Optional[int] = None,
         inference: bool = False,
     ) -> torch.Tensor:
         """
@@ -575,7 +575,7 @@ class Decoder(nn.Module):
         """
         _, context = x.shape
         # use the entire context while training.
-        if not inference:
+        if not inference or (pos_start is None or pos_end is None):
             pos_start = 0
             pos_end = context
         x = self.token_embeddings(x) + self.pos_embeddings(
