@@ -204,7 +204,7 @@ class Trainer:
                         target_prefix=target_prefix,
                         actual_target=actual_target,
                         max_tokens=max_tokens,
-                        # device=device,
+                        device=device,
                     )
 
             # calculate average training loss.
@@ -242,7 +242,7 @@ class Trainer:
                 target_prefix=target_prefix,
                 actual_target=actual_target,
                 max_tokens=max_tokens,
-                # device=device,
+                device=device,
             )
 
         # return the result back.
@@ -358,7 +358,7 @@ class Trainer:
         target_prefix: str | None,
         actual_target: str | None,
         max_tokens: int | None,
-        # device: DeviceType = "cpu",
+        device: DeviceType = "cpu",
     ):
         """
         :param predict_input: The input string of the source text to predict the
@@ -389,6 +389,7 @@ class Trainer:
                 target_prefix,
                 max_tokens,
                 self.tokenizer.get_piece_id("<|endoftext|>"),
+                device=device
             ):
                 result += self.tokenizer.decode(token)
 
@@ -412,7 +413,7 @@ class Predictor:
         target: str,
         max_tokens: int,  # context size.
         stop_token: int,
-        # device: DeviceType = "cpu",
+        device: DeviceType = "cpu",
     ) -> Generator[torch.Tensor, Any, Any]:
         """
         Method to predict tokens for the given input and
@@ -439,8 +440,8 @@ class Predictor:
         :rtype: Generator[torch.Tensor, Any, Any].
         """
         # automatically move the model to respective device.
-        # model.to(device)
-        model.cpu()
+        model.to(device)
+        # model.cpu()
         # put the model in eval mode.
         model.eval()
         with torch.inference_mode():
@@ -449,6 +450,9 @@ class Predictor:
             y = tokenizer.encode(target).unsqueeze(dim=0)  # to make [b, y]
             # move the inputs to respective devices.
             # x, y, _ = self.move(x, y, device=device)
+
+            x = x.to(device)
+            y = y.to(device)
 
             # caculate the encoder state once for inference.
             memory = model.encode(x)
