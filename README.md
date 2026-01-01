@@ -79,7 +79,7 @@ To perform inference using the trained model, run the notebook in the `notebooks
 
 This folder contains the implementation of the transformer architecture for machine translation using pytorch. The folder structure is as follows:
 
-- `components.py`: Contains the implementation of various components of the transformer architecture such as multi-head attention, positional encoding, feed forward neural networks etc. **Need to implement quantization and key-value caching techniques for optimization.**
+- `components.py`: Contains the implementation of various components of the transformer architecture such as multi-head attention, positional encoding, feed forward neural networks etc. Also contains code for key-value caching. **Need to implement quantization optimization.**
 - `model.py`: Contains the code to train the transformer model for machine translation using the components implemented in `components.py`.
 - `processing.py`: Contains the code to preprocess the dataset for training the transformer model, such as DataLoader, collate functions etc.
 - `tokenizer.py`: Contains the code to train the tokenizer using SentencePiece library.
